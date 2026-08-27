@@ -1,0 +1,301 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4">
+    <h3 class="fw-bold text-primary"><i class="fa-solid fa-pen-to-square me-2"></i>修改進貨單 - {{ order.order_no }}</h3>
+    <p class="text-muted small">請注意：修改儲存後，系統將自動以最新內容重新計算應付帳款與庫存。打單時單價欄位同樣支援歷史進價查詢。</p>
+</div>
+
+<style>
+    /* 沿用打單頁面的樣式 */
+    .ven-search-results { position: absolute; z-index: 1050; width: 100%; top: 100%; left: 0; background: white; border: 1px solid #e0e0e0; border-radius: 0 0 10px 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); display: none; max-height: 250px; overflow-y: auto; }
+    .ven-search-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f8f9fa; transition: 0.2s; }
+    .ven-search-item:hover { background: #f0f7ff; }
+    .ven-search-item.active { background: #0d6efd; color: white; }
+    #searchOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: none; justify-content: center; align-items: center; outline: none; }
+    .search-modal { background: white; width: 85%; max-width: 1100px; max-height: 80vh; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+    .search-body { flex: 1; overflow-y: auto; padding: 10px; }
+    .search-row { cursor: pointer; border-bottom: 1px solid #eee; }
+    .search-row.active td { background-color: #0d6efd !important; color: white !important; }
+</style>
+
+<form action="/edit_purchase_order/{{ order.id }}" method="POST" id="purchaseForm">
+    <div class="card rounded-card border-0 shadow-sm p-4 mb-4 bg-white border-start border-5 border-primary">
+        <div class="row g-4">
+            <div class="col-md-5 position-relative">
+                <label class="small fw-bold text-primary">1. 選擇供應商</label>
+                <input type="text" id="venSearch" class="form-control form-control-lg border-primary shadow-sm" placeholder="🔍 搜尋廠商..." value="{{ order.vendor_ref.vendor_no }} - {{ order.vendor_ref.short_name }}" autocomplete="off" required>
+                <input type="hidden" name="vendor_id" id="hiddenVenId" value="{{ order.vendor_id }}">
+                <div id="venDropdown" class="ven-search-results text-dark"></div>
+            </div>
+            <div class="col-md-4">
+                <label class="small fw-bold">進貨單據日期</label>
+                <input type="date" name="date" class="form-control form-control-lg shadow-sm" value="{{ order.date.strftime('%Y-%m-%d') }}" required>
+            </div>
+            <div class="col-md-3">
+                <label class="small fw-bold text-primary">歸屬月帳</label>
+                <input type="number" name="billing_month" class="form-control form-control-lg shadow-sm border-primary" value="{{ order.billing_month }}" required>
+            </div>
+        </div>
+    </div>
+
+    <div class="card rounded-card border-0 shadow-sm p-3 mb-4 text-white position-relative" style="background-color: #343a40;">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3 position-relative">
+                <label class="small">1.條碼/名稱/自編 (Enter搜尋)</label>
+                <input type="text" id="scI" class="form-control bg-transparent text-white border-secondary" autocomplete="off">
+            </div>
+            <div class="col-md-3">
+                <label class="small">名稱 (自動帶入)</label>
+                <input type="text" id="naI" class="form-control bg-dark text-white border-0" readonly tabindex="-1">
+            </div>
+            <div class="col-md-1">
+                <label class="small text-center d-block">庫存</label>
+                <input type="text" id="stI" class="form-control bg-dark text-white border-0 text-center" readonly tabindex="-1">
+            </div>
+            <div class="col-md-1">
+                <label class="small text-info">2.進量</label>
+                <input type="number" id="qtI" class="form-control">
+            </div>
+            <div class="col-md-2 position-relative">
+                <label class="small text-info">單價(進價)</label>
+                <input type="number" id="prI" class="form-control" step="any">
+            </div>
+            <div class="col-md-2">
+                <label class="small">3.備註 (Enter 存檔)</label>
+                <input type="text" id="reI" class="form-control" placeholder="輸入備註">
+            </div>
+        </div>
+        
+        <div id="historyPopup" style="display:none; position:absolute; z-index:1060; background:white; border:2px solid #0d6efd; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.2); padding:12px; width: 260px; color: #333;">
+            <div class="fw-bold text-primary mb-2 border-bottom pb-1"><i class="fa-solid fa-clock-rotate-left me-1"></i>歷史進貨單價</div>
+            <div id="historyContent" class="small">載入中...</div>
+            <div class="mt-2 pt-2 border-top text-center" style="font-size:0.75rem; color:#666;">
+                <span class="badge bg-light text-dark border me-1">Enter</span>套用跳下格<br>
+                <span class="badge bg-light text-dark border me-1 mt-1">ESC</span>關閉手動改
+            </div>
+        </div>
+    </div>
+
+    <table class="table bg-white rounded-4 shadow-sm overflow-hidden align-middle">
+        <thead class="table-primary small">
+            <tr>
+                <th class="ps-3 py-3">條碼</th>
+                <th class="py-3">商品名稱</th>
+                <th width="80" class="py-3 text-center">庫存</th>
+                <th width="100" class="py-3">進貨量</th>
+                <th width="120" class="py-3">進貨單價</th>
+                <th class="py-3">備註</th>
+                <th width="50"></th>
+            </tr>
+        </thead>
+        <tbody id="itemList">
+            {% for item in order.items %}
+            <tr>
+                <td class="ps-3">{{ item.product_ref.barcode or item.product_ref.code1 or '' }}</td>
+                <td><input type="hidden" name="product_id[]" value="{{ item.product_id }}"><b>{{ item.product_ref.name }}</b></td>
+                <td class="text-center text-danger fw-bold">{{ item.product_ref.stock }}</td>
+                <td><input type="number" name="qty[]" class="form-control form-control-sm q-in" value="{{ item.qty }}" oninput="calc()"></td>
+                <td><input type="number" name="price[]" class="form-control form-control-sm p-in" value="{{ item.price }}" step="any" oninput="calc()"></td>
+                <td><input type="text" name="remark[]" class="form-control form-control-sm" value="{{ item.remark or '' }}"></td>
+                <td><button type="button" class="btn btn-link text-danger p-0" onclick="this.closest('tr').remove();calc()">✕</button></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4" class="text-end fw-bold py-3 fs-5">進貨總金額：</td>
+                <td colspan="3" class="text-primary fw-bold py-3 fs-4" id="totalAmountDisplay">$ {{ "{:,.0f}".format(order.total_amount) }}</td>
+            </tr>
+        </tfoot>
+    </table>
+    
+    <div class="d-flex justify-content-between align-items-center mt-4">
+        <button type="button" class="btn btn-outline-danger px-4 py-3 rounded-pill fw-bold shadow-sm" onclick="if(confirm('確定要作廢這張進貨單嗎？作廢後商品將會自動扣除庫存！')) { document.getElementById('deleteForm').submit(); }">
+            <i class="fa-solid fa-trash-can me-2"></i>作廢此單
+        </button>
+        <button type="submit" class="btn btn-primary px-5 py-3 rounded-pill fw-bold shadow fs-5"><i class="fa-solid fa-check-double me-2"></i>確認儲存修改</button>
+    </div>
+</form>
+
+<form id="deleteForm" action="/delete_purchase_order/{{ order.id }}" method="POST" style="display: none;"></form>
+
+<div id="searchOverlay" tabindex="-1">
+    <div class="search-modal">
+        <div class="search-body">
+            <table class="table align-middle"><thead class="sticky-top bg-white"><tr class="text-muted small"><th>商品名稱</th><th>國際條碼</th><th>自編碼</th><th>庫存</th><th>定價</th></tr></thead><tbody id="resList"></tbody></table>
+        </div>
+    </div>
+</div>
+
+<script>
+// 廠商搜尋與選擇
+const venData = [ {% for v in vendors %} { id: "{{ v.id }}", no: "{{ v.vendor_no }}", name: "{{ v.short_name }}" }, {% endfor %} ];
+const venSearch = document.getElementById('venSearch'), venDropdown = document.getElementById('venDropdown'), hiddenVenId = document.getElementById('hiddenVenId');
+let filteredVens = [], venActiveIdx = -1;
+
+venSearch.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim(); hiddenVenId.value = ''; 
+    if (!q) { filteredVens = venData; } else { filteredVens = venData.filter(v => v.no.toLowerCase().includes(q) || v.name.toLowerCase().includes(q)); }
+    showVenDropdown();
+});
+function showVenDropdown() {
+    if (filteredVens.length === 0) { venDropdown.innerHTML = '<div class="p-3 text-muted small text-center">找不到相符的廠商</div>'; } 
+    else { venDropdown.innerHTML = filteredVens.map((v, i) => `<div class="ven-search-item" onclick="selectVen(${i})" id="ven-row-${i}"><span class="fw-bold">${v.no}</span> - <span>${v.name}</span></div>`).join(''); }
+    venDropdown.style.display = 'block'; venActiveIdx = -1;
+}
+function selectVen(idx) {
+    const v = filteredVens[idx]; venSearch.value = `${v.no} - ${v.name}`; hiddenVenId.value = v.id;
+    venDropdown.style.display = 'none'; document.getElementById('scI').focus();
+}
+venSearch.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); venActiveIdx = Math.min(venActiveIdx + 1, filteredVens.length - 1); updateVenActive(); } 
+    else if (e.key === 'ArrowUp') { e.preventDefault(); venActiveIdx = Math.max(venActiveIdx - 1, 0); updateVenActive(); } 
+    else if (e.key === 'Enter') { e.preventDefault(); if (venActiveIdx > -1 && filteredVens.length > 0) selectVen(venActiveIdx); else if (filteredVens.length === 1) selectVen(0); } 
+    else if (e.key === 'Escape') { venDropdown.style.display = 'none'; }
+});
+function updateVenActive() { document.querySelectorAll('.ven-search-item').forEach((el, i) => { el.classList.toggle('active', i === venActiveIdx); if (i === venActiveIdx) el.scrollIntoView({ block: 'nearest' }); }); }
+document.addEventListener('click', e => { if (!venSearch.contains(e.target) && !venDropdown.contains(e.target)) venDropdown.style.display = 'none'; });
+
+// 商品搜尋與快捷鍵流
+const scI=document.getElementById('scI'), qtI=document.getElementById('qtI'), prI=document.getElementById('prI'), reI=document.getElementById('reI'), overlay=document.getElementById('searchOverlay'), resList=document.getElementById('resList');
+let curP=null, sList=[], aIdx=-1;
+
+scI.addEventListener('keydown', e => { 
+    if(e.key === 'Enter'){ 
+        e.preventDefault(); if(overlay.style.display === 'flex') return;
+        if(!hiddenVenId.value) { alert('請先選擇廠商！'); venSearch.focus(); return; }
+        searchProd(scI.value); 
+    }
+});
+
+function searchProd(v){ 
+    if(!v) return;
+    fetch(`/api/search_products?q=${v}`).then(r=>r.json()).then(d=>{ 
+        if(d.length === 1) { selectProd(d[0]); } 
+        else if(d.length > 1){ sList=d; showM(); } 
+        else { alert('找不到商品'); scI.value=''; }
+    });
+}
+function showM(){ 
+    resList.innerHTML = sList.map((p,i)=>`<tr class="search-row" onclick="selectProd(sList[${i}])"><td><b class="fs-5">${p.name}</b></td><td>${p.barcode||''}</td><td>${p.code1||''}</td><td class="text-danger fw-bold">${p.stock}</td><td>${p.price}</td></tr>`).join(''); 
+    overlay.style.display='flex'; overlay.focus(); aIdx = 0; document.addEventListener('keydown', mK); updateA(); 
+}
+function mK(e){ 
+    if(overlay.style.display !== 'flex') return;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); aIdx = Math.min(aIdx+1, sList.length-1); updateA(); } 
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); aIdx = Math.max(aIdx-1, 0); updateA(); } 
+    else if(e.key === 'Enter'){ e.preventDefault(); e.stopPropagation(); if(aIdx >= 0 && aIdx < sList.length) { selectProd(sList[aIdx]); } } 
+    else if(e.key === 'Escape'){ hideM(); }
+}
+function updateA(){ const rows = resList.querySelectorAll('.search-row'); rows.forEach((el, i) => { el.classList.remove('active'); if (i === aIdx) { el.classList.add('active'); el.scrollIntoView({ block: 'nearest' }); } }); }
+function hideM(){ overlay.style.display='none'; document.removeEventListener('keydown', mK); scI.focus(); }
+
+// 歷史進價全域變數與視窗控制
+let histData = [];
+let histIdx = -1;
+const historyPopup = document.getElementById('historyPopup');
+const historyContent = document.getElementById('historyContent');
+
+function selectProd(p){ 
+    curP=p; scI.value=p.barcode||p.code1; 
+    document.getElementById('naI').value=p.name; 
+    document.getElementById('stI').value=p.stock; 
+    const defaultPrice = p.cost || 0; 
+    hideM(); 
+    
+    const vid = hiddenVenId.value;
+    if(vid) {
+        fetch(`/api/historical_purchase_prices?vendor_id=${vid}&product_id=${p.id}`)
+        .then(r => r.json())
+        .then(data => {
+            histData = data;
+            if(histData.length > 0) {
+                prI.value = histData[0].price; 
+            } else {
+                prI.value = defaultPrice;
+            }
+            qtI.focus(); qtI.select(); 
+        });
+    } else {
+        prI.value = defaultPrice;
+        qtI.focus(); qtI.select();
+    }
+}
+
+function renderHistoryPopup() {
+    if(histData.length > 0) {
+        historyContent.innerHTML = histData.map((d, i) => 
+            `<div class="d-flex justify-content-between mb-1 px-2 py-1 rounded ${i===histIdx ? 'bg-primary text-white fw-bold' : 'text-muted'}" style="transition:0.2s;">
+                <span>${d.date}</span>
+                <span>$ ${d.price}</span>
+            </div>`
+        ).join('');
+        historyPopup.style.display = 'block';
+        
+        const rect = prI.getBoundingClientRect();
+        const inputContainerRect = prI.closest('.row').getBoundingClientRect();
+        historyPopup.style.top = (rect.bottom - inputContainerRect.top + 5) + 'px';
+        historyPopup.style.left = (rect.left - inputContainerRect.left) + 'px';
+    } else {
+        historyPopup.style.display = 'none';
+    }
+}
+
+function hideHistoryPopup() { historyPopup.style.display = 'none'; }
+
+qtI.addEventListener('keydown', e => { 
+    if(e.key === 'Enter'){ 
+        e.preventDefault(); prI.focus(); prI.select(); 
+        if (histData.length > 0) {
+            histIdx = 0; 
+            renderHistoryPopup();
+        }
+    }
+});
+
+prI.addEventListener('keydown', e => { 
+    if(e.key === 'ArrowDown'){
+        if(histData.length > 0) {
+            e.preventDefault();
+            histIdx = Math.min(histIdx + 1, histData.length - 1);
+            prI.value = histData[histIdx].price; 
+            renderHistoryPopup(); 
+        }
+    } else if(e.key === 'ArrowUp'){
+        if(histData.length > 0) {
+            e.preventDefault();
+            histIdx = Math.max(histIdx - 1, 0);
+            prI.value = histData[histIdx].price; 
+            renderHistoryPopup(); 
+        }
+    } else if(e.key === 'Enter'){ 
+        e.preventDefault(); hideHistoryPopup(); reI.focus(); 
+    } else if (e.key === 'Escape') {
+        e.preventDefault(); hideHistoryPopup(); prI.focus(); prI.select();
+    }
+});
+
+document.addEventListener('click', e => {
+    if(!prI.contains(e.target) && !historyPopup.contains(e.target)) hideHistoryPopup();
+});
+
+reI.addEventListener('keydown', e => { 
+    if(e.key==='Enter'){ 
+        e.preventDefault(); if(!curP) return;
+        const h = `<tr><td class="ps-3">${curP.barcode||''}</td><td><input type="hidden" name="product_id[]" value="${curP.id}"><b>${curP.name}</b></td><td class="text-center text-danger fw-bold">${curP.stock}</td><td><input type="number" name="qty[]" class="form-control form-control-sm q-in" value="${qtI.value}" oninput="calc()"></td><td><input type="number" name="price[]" class="form-control form-control-sm p-in" value="${prI.value}" step="any" oninput="calc()"></td><td><input type="text" name="remark[]" class="form-control form-control-sm" value="${reI.value}"></td><td><button type="button" class="btn btn-link text-danger p-0" onclick="this.closest('tr').remove();calc()">✕</button></td></tr>`;
+        document.getElementById('itemList').insertAdjacentHTML('afterbegin', h); calc(); curP=null; 
+        ['scI','naI','stI','qtI','prI','reI'].forEach(id=>document.getElementById(id).value=''); scI.focus(); 
+    }
+});
+
+function calc() {
+    let total = 0;
+    document.querySelectorAll('#itemList tr').forEach(tr => {
+        const q = parseFloat(tr.querySelector('.q-in').value) || 0;
+        const p = parseFloat(tr.querySelector('.p-in').value) || 0;
+        total += (q * p);
+    });
+    document.getElementById('totalAmountDisplay').innerText = '$ ' + total.toLocaleString();
+}
+</script>
+{% endblock %}

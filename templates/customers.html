@@ -1,0 +1,71 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4"><h3 class="fw-bold text-success"><i class="fa-solid fa-address-book me-2"></i>客戶資料管理</h3></div>
+<div class="card rounded-card border-0 shadow-sm p-4 mb-5 bg-white">
+    <form action="/add_customer" method="POST" class="row g-3">
+        <div class="col-md-3"><label class="small fw-bold">客戶編號</label><input type="text" name="cust_no" class="form-control shadow-sm" required></div>
+        <div class="col-md-3"><label class="small fw-bold">客戶簡稱</label><input type="text" name="short_name" class="form-control shadow-sm"></div>
+        <div class="col-md-6"><label class="small fw-bold">客戶正式全名</label><input type="text" name="full_name" class="form-control shadow-sm" required></div>
+        
+        <div class="col-md-3"><label class="small fw-bold text-primary">結帳日 (號)</label><input type="number" name="closing_day" class="form-control border-primary shadow-sm" value="20"></div>
+        <div class="col-md-3"><label class="small fw-bold text-primary">月結付款天數 (天)</label><input type="number" name="payment_day" class="form-control border-primary shadow-sm" value="30"></div>
+        <div class="col-md-3"><label class="small fw-bold text-danger">銷貨折數 (例:60為6折)</label><input type="number" name="price_discount" class="form-control border-danger shadow-sm" value="60"></div>
+        <div class="col-md-3"><label class="small fw-bold text-danger">後扣百分比 (%)</label><input type="number" name="post_discount" class="form-control border-danger shadow-sm" value="0"></div>
+
+        <div class="col-md-3"><label class="small fw-bold">聯絡人</label><input type="text" name="contact_person" class="form-control"></div>
+        <div class="col-md-3"><label class="small fw-bold">公司電話</label><input type="text" name="phone" class="form-control"></div>
+        <div class="col-md-3"><label class="small fw-bold text-primary">手機號碼</label><input type="text" name="mobile" class="form-control"></div>
+        
+        <div class="col-md-3">
+            <label class="small fw-bold text-info">主要負責業務</label>
+            <select name="user_id" class="form-select border-info shadow-sm">
+                <option value="">(未指定)</option>
+                {% for u in users %}
+                <option value="{{ u.id }}">{{ u.employee.name if u.employee else u.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-3"><label class="small fw-bold">統一編號</label><input type="text" name="tax_id" class="form-control"></div>
+        <div class="col-md-3"><label class="small fw-bold">傳真號碼</label><input type="text" name="fax" class="form-control"></div>
+        <div class="col-md-6"><label class="small fw-bold">匯款帳號資料</label><input type="text" name="bank_account" class="form-control" placeholder="例：台銀(004) 1234567890"></div>
+        
+        <div class="col-md-6"><label class="small fw-bold">送貨地址</label><input type="text" name="shipping_address" class="form-control"></div>
+        <div class="col-md-4"><label class="small fw-bold">發票寄送地址</label><input type="text" name="invoice_address" class="form-control"></div>
+        <div class="col-md-2 d-flex align-items-end pb-1">
+            <div class="form-check form-switch ms-2"><input class="form-check-input" type="checkbox" name="has_invoice" id="invSwitch"><label class="form-check-label fw-bold" for="invSwitch">需開立發票</label></div>
+        </div>
+        
+        <div class="col-12 text-end mt-4"><button type="submit" class="btn btn-success px-5 py-3 rounded-pill shadow fw-bold">建立客戶並儲存所有資料</button></div>
+    </form>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-hover bg-white rounded-4 shadow-sm overflow-hidden align-middle">
+        <thead class="small" style="background-color: #d1e7dd; color: #0f5132;">
+            <tr>
+                <th class="ps-4 py-3">編號/簡稱</th><th class="py-3">客戶全名/電話</th><th class="py-3">聯絡人/負責業務</th>
+                <th class="py-3">財務規則/匯款帳號</th><th class="py-3">折數/後扣/發票</th><th class="py-3">收件地址</th><th class="text-center py-3">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in customers %}
+            <tr class="border-bottom">
+                <td class="ps-4"><div class="fw-bold text-dark fs-6">{{ c.cust_no }}</div><div class="small fw-bold text-success">{{ c.short_name }}</div></td>
+                <td><div class="fw-bold text-dark">{{ c.full_name }}</div><div class="small text-muted">電話: {{ c.phone or '---' }}</div><div class="small text-muted">統編: {{ c.tax_id or '---' }}</div></td>
+                <td>
+                    <div class="fw-bold text-dark">{{ c.contact_person or '---' }}</div>
+                    <div class="small text-muted mt-1">手機: {{ c.mobile or '---' }}</div>
+                    <div class="small text-info fw-bold mt-1"><i class="fa-solid fa-user-tie"></i> 業務: {{ c.user_ref.employee.name if c.user_ref and c.user_ref.employee else (c.user_ref.username if c.user_ref else '未指定') }}</div>
+                </td>
+                <td><div class="small fw-bold text-dark">{{ c.closing_day }}號結 / 月結{{ c.payment_day }}天</div><div class="small text-muted mt-1">帳號: {{ c.bank_account or '---' }}</div></td>
+                <td><div><span class="badge bg-danger rounded-pill px-2 py-1">{{ (c.price_discount*10)|round(1) }}折</span> <span class="badge bg-secondary rounded-pill px-2 py-1">扣{{ c.post_discount }}%</span></div><div class="small mt-2 fw-bold {% if c.has_invoice %}text-success{% else %}text-muted{% endif %}">{% if c.has_invoice %}<i class="fa-solid fa-check-circle"></i> 需開發票{% else %}<i class="fa-solid fa-circle-xmark"></i> 不開發票{% endif %}</div></td>
+                <td><div class="small text-dark" style="max-width: 220px; white-space: normal; line-height: 1.4;">{{ c.shipping_address or '---' }}</div></td>
+                <td class="text-center"><a href="/edit_customer/{{ c.id }}" class="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold">修改</a></td>
+            </tr>
+            {% endfor %}
+            {% if not customers %}<tr><td colspan="7" class="text-center py-5 text-muted">目前尚未建立任何客戶資料</td></tr>{% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

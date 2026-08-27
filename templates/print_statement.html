@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ company_name }} - 客戶請款對帳單</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* 💡 中一刀報表紙強制設定列印尺寸 */
+        @page {
+            size: 21.6cm 14cm; 
+            margin: 5mm 10mm; 
+        }
+        
+        body { 
+            font-family: "微軟正黑體", sans-serif; 
+            background: #fff; 
+            color: #000; 
+            font-size: 13px; 
+        }
+        
+        .print-container { 
+            width: 100%; 
+            max-width: 20cm; 
+            margin: 0 auto; 
+            padding: 10px; 
+        }
+        
+        .statement-title { font-size: 20px; font-weight: bold; text-align: center; letter-spacing: 5px; margin-bottom: 2px;}
+        .statement-subtitle { font-size: 15px; font-weight: bold; text-align: center; letter-spacing: 2px; margin-bottom: 5px; }
+        .dotted-line { border-top: 1px dashed #000; margin: 8px 0; }
+        
+        .table th, .table td { 
+            border-bottom: 1px dashed #ccc; 
+            padding: 4px 5px !important; 
+        }
+        .table th { border-bottom: 1px dashed #000; font-weight: bold; }
+        .table { margin-bottom: 5px; }
+        
+        .summary-box { 
+            border: 1px solid #000; 
+            padding: 6px 10px; 
+            background-color: #fafafa; 
+        }
+        .amount-col { text-align: right; }
+        
+        @media print {
+            body { background: #fff; }
+            .no-print { display: none !important; }
+            .summary-box { background-color: transparent !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print text-center my-3">
+        <button onclick="window.print()" class="btn btn-dark btn-sm px-4 shadow-sm">🖨️ 列印對帳單 (中一刀)</button>
+        <a href="javascript:history.back()" class="btn btn-outline-secondary btn-sm ms-2 px-4">返回</a>
+        <div class="text-danger small mt-1">※ 提示：列印時請確認印表機紙張大小設定為「Letter Half」或「中一刀 (8.5x5.5)」</div>
+    </div>
+
+    <div class="print-container">
+        <div class="statement-title">{{ company_name }}</div>
+        <div class="statement-subtitle">客 戶 請 款 對 帳 單</div>
+        <div class="dotted-line"></div>
+        
+        <div class="row mb-1 fw-bold" style="font-size: 12px;">
+            <div class="col-6">客戶編號：{{ customer.cust_no }}</div>
+            <div class="col-6 text-end">結帳區間：{{ year }} 年 {{ month }} 月</div>
+        </div>
+        <div class="row mb-1 fw-bold" style="font-size: 12px;">
+            <div class="col-6">客戶名稱：{{ customer.short_name }}</div>
+            <div class="col-6 text-end">列印日期：{{ today_date }}</div>
+        </div>
+        
+        <div class="dotted-line"></div>
+
+        <table class="table table-borderless">
+            <thead>
+                <tr>
+                    <th width="10%">項次</th>
+                    <th width="25%">出貨日期</th>
+                    <th width="40%">銷貨單號</th>
+                    <th width="25%" class="amount-col">單據金額</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ order.date.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ order.order_no }}</td>
+                    <td class="amount-col">$ {{ "{:,.0f}".format(order.total_amount) }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="text-center text-muted py-1">本期無出貨紀錄</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if returns %}
+        <div class="fw-bold mt-2" style="font-size: 12px;">【本期退貨紀錄】</div>
+        <table class="table table-borderless mt-1">
+            <thead>
+                <tr>
+                    <th width="10%">項次</th>
+                    <th width="25%">退貨日期</th>
+                    <th width="40%">退貨單號</th>
+                    <th width="25%" class="amount-col">單據金額</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in returns %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ r.date.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ r.order_no }}</td>
+                    <td class="amount-col text-danger">-$ {{ "{:,.0f}".format(r.total_return_amount) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        <div class="dotted-line mt-2"></div>
+
+        <div class="row mt-2 align-items-end">
+            <div class="col-8">
+                <div class="summary-box">
+                    <div class="fw-bold mb-1" style="font-size: 12px;">【本期應收計算明細】</div>
+                    <div style="font-size: 12px; line-height: 1.5;">
+                        ( 銷貨 ${{ "{:,.0f}".format(curr_std_sales) }} - 退貨 ${{ "{:,.0f}".format(curr_std_ret) }} ) × {{ 100 - discount_percent }}% + ( 現金銷貨 ${{ "{:,.0f}".format(curr_cash_sales) }} - 現金退貨 ${{ "{:,.0f}".format(curr_cash_ret) }} )<br>
+                        = 應收帳款：<span class="fw-bold">$ {{ "{:,.0f}".format(current_receivable) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-4 text-end pb-1">
+                <div class="fw-bold border-bottom border-2 border-dark pb-1 d-inline-block" style="font-size: 16px;">
+                    總結應付：$ {{ "{:,.0f}".format(total_due) }}
+                </div>
+            </div>
+        </div>
+
+        <div class="dotted-line mt-2 mb-1"></div>
+        
+        <div class="small text-muted" style="font-size: 11px;">
+            匯款帳號：<span class="fw-bold text-dark">{{ profile.bank_account if profile and profile.bank_account else '請見公司設定' }}</span>
+        </div>
+    </div>
+</body>
+</html>

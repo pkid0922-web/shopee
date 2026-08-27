@@ -1,0 +1,239 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4">
+    <h3 class="fw-bold text-primary"><i class="fa-solid fa-receipt me-2"></i>發票列印作業 (收銀機三聯式)</h3>
+    <p class="text-muted small">選擇歸屬月帳，系統將列出「需開立發票」的客戶。發票日期請直接輸入<strong class="text-danger">「日」</strong>，填寫後按 <strong class="text-danger">向下方向鍵 (↓)</strong> 可自動複製日期到下一格！</p>
+</div>
+
+<div class="card rounded-card border-0 shadow-sm p-4 mb-4 bg-white">
+    <form action="/invoices" method="GET" class="row g-3 align-items-end">
+        <div class="col-md-2">
+            <label class="small fw-bold text-muted mb-1">目標年份 (西元)</label>
+            <input type="number" name="year" class="form-control bg-light fw-bold text-center" value="{{ target_year }}">
+        </div>
+        <div class="col-md-2">
+            <label class="small fw-bold text-muted mb-1">目標月份</label>
+            <select name="month" class="form-select bg-light">
+                {% for i in range(1, 13) %}
+                <option value="{{ i }}" {% if target_month == i %}selected{% endif %}>{{ i }} 月</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-dark w-100 rounded-pill fw-bold shadow-sm">載入客戶名單</button>
+        </div>
+    </form>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <button class="btn btn-outline-secondary rounded-pill fw-bold px-4 me-2 shadow-sm" onclick="setAllPrint(false)"><i class="fa-solid fa-eraser me-1"></i>全部不列</button>
+        <button class="btn btn-outline-primary rounded-pill fw-bold px-4 shadow-sm" onclick="setAllPrint(true)"><i class="fa-solid fa-check-double me-1"></i>全部列印</button>
+    </div>
+    
+    <button class="btn btn-danger rounded-pill fw-bold px-5 py-2 shadow fs-5" onclick="batchPrint({{ target_year }}, {{ target_month }})">
+        <i class="fa-solid fa-print me-2"></i>開始列印 (有標記 Y)
+    </button>
+</div>
+
+<style>
+    /* 點擊切換 Y 的專屬方塊 CSS */
+    .print-toggle {
+        width: 45px; height: 45px; border: 2px solid #ced4da; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; font-size: 1.4rem; margin: 0 auto; user-select: none;
+        transition: all 0.2s ease; background-color: #f8f9fa; color: transparent;
+    }
+    .print-toggle:hover { border-color: #ff9f43; background-color: #fff; }
+    .print-toggle.active { background-color: #ff9f43; border-color: #ff9f43; color: white; font-weight: 900; }
+</style>
+
+<div class="card rounded-card border-0 shadow-sm bg-white overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="small" style="background-color: #cfe2ff; color: #084298;">
+                <tr>
+                    <th class="ps-4 py-3">客戶編號 / 名稱</th>
+                    <th class="text-center py-3">統一編號</th>
+                    <th class="py-3" width="180">發票總金額 (含稅)</th>
+                    <th class="text-center py-3" width="120">發票日期 (日)</th>
+                    <th class="text-center py-3" width="120">列印狀態</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in results %}
+                {% set amt = r.record.amount if r.record and r.record.amount > 0 else r.default_amount %}
+                {% set iday = r.record.invoice_date.day if r.record and r.record.invoice_date else '' %}
+                <tr data-cid="{{ r.customer.id }}">
+                    <td class="ps-4">
+                        <div class="fw-bold text-dark fs-6">{{ r.customer.short_name }}</div>
+                        <div class="small text-muted">{{ r.customer.cust_no }}</div>
+                    </td>
+                    <td class="text-center fw-bold text-secondary">{{ r.customer.tax_id or '未填寫' }}</td>
+                    <td>
+                        <input type="number" class="form-control fw-bold text-danger border-danger inv-amount text-end fs-5" value="{{ amt|int }}">
+                    </td>
+                    <td>
+                        <input type="number" class="form-control fw-bold text-primary text-center fs-5 inv-day" placeholder="日" value="{{ iday }}" min="1" max="31">
+                    </td>
+                    <td class="text-center">
+                        <div class="print-toggle" onclick="togglePrint(this)"></div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not results %}
+                <tr><td colspan="5" class="text-center py-5 text-muted">本月沒有設定為「需開立發票」的客戶</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="mt-5 mb-4">
+        <h5 class="fw-bold text-secondary mb-3"><i class="fa-solid fa-clock-rotate-left me-2"></i>本月已開立發票紀錄</h5>
+        <div class="card rounded-card border-0 shadow-sm bg-white overflow-hidden">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light small">
+                        <tr>
+                            <th class="ps-4">客戶名稱</th>
+                            <th>發票日期</th>
+                            <th class="text-end">發票總額 (含稅)</th>
+                            <th class="text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for h in history %}
+                        <tr>
+                            <td class="ps-4 fw-bold">{{ h.customer_ref.short_name }}</td>
+                            <td>{{ h.invoice_date }}</td>
+                            <td class="text-end fw-bold text-dark fs-5">$ {{ "{:,.0f}".format(h.amount) }}</td>
+                            <td class="text-center">
+                                <a href="/print_invoice/{{ h.customer_id }}?year={{ target_year }}&month={{ target_month }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold me-2">
+                                    <i class="fa-solid fa-print me-1"></i>補印
+                                </a>
+                                <form action="/delete_invoice_record/{{ h.id }}" method="POST" class="d-inline" onsubmit="return confirm('確定要作廢此發票紀錄嗎？\n作廢後，該客戶將會重新回到上方的「待開立清單」中！');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm">
+                                        <i class="fa-solid fa-rotate-left me-1"></i>作廢重開
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-center py-4 text-muted">本月尚無已開立的發票紀錄</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+<script>
+// ==========================================
+// 1. 鍵盤向下複製日期的極速輸入邏輯
+// ==========================================
+document.addEventListener('keydown', function(e) {
+    if (e.target.classList.contains('inv-day')) {
+        const inputs = Array.from(document.querySelectorAll('.inv-day'));
+        const idx = inputs.indexOf(e.target);
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault(); // 防止畫面跟著往下捲動
+            if (idx > -1 && idx < inputs.length - 1) {
+                const nextInput = inputs[idx + 1];
+                // 核心邏輯：將現在這格的數值，直接賦值給下一格
+                nextInput.value = e.target.value; 
+                nextInput.focus();
+                nextInput.select();
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (idx > 0) {
+                inputs[idx - 1].focus();
+                inputs[idx - 1].select();
+            }
+        }
+    }
+});
+
+// ==========================================
+// 2. 點擊切換 Y 與 全部列印/不列按鈕邏輯
+// ==========================================
+function togglePrint(el) {
+    if (el.innerText === 'Y') {
+        el.innerText = '';
+        el.classList.remove('active');
+    } else {
+        el.innerText = 'Y';
+        el.classList.add('active');
+    }
+}
+
+function setAllPrint(isPrint) {
+    document.querySelectorAll('.print-toggle').forEach(el => {
+        if (isPrint) {
+            el.innerText = 'Y';
+            el.classList.add('active');
+        } else {
+            el.innerText = '';
+            el.classList.remove('active');
+        }
+    });
+}
+
+// ==========================================
+// 3. 批次儲存與連續列印邏輯
+// ==========================================
+async function batchPrint(year, month) {
+    const rows = document.querySelectorAll('tbody tr[data-cid]');
+    let selectedCount = 0;
+    let cidsToPrint = [];
+    
+    for (let row of rows) {
+        const toggle = row.querySelector('.print-toggle');
+        // 只針對有標記 Y 的列進行處理
+        if (toggle && toggle.innerText === 'Y') {
+            const cid = row.dataset.cid;
+            const amt = row.querySelector('.inv-amount').value;
+            const day = row.querySelector('.inv-day').value;
+            
+            if(!day) {
+                alert('⚠️ 發現有標記 Y 的客戶尚未填寫發票日期(日)！請填寫後再列印。');
+                row.querySelector('.inv-day').focus();
+                return;
+            }
+            
+            // 組合出後端需要的完整日期格式 YYYY-MM-DD
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            
+            // 呼叫後端 API 進行靜默存檔
+            await fetch('/api/save_invoice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customer_id: cid, year: year, month: month, amount: amt, invoice_date: dateStr })
+            });
+            
+            cidsToPrint.push(cid);
+            selectedCount++;
+        }
+    }
+    
+    if (selectedCount === 0) {
+        alert('請至少點擊一個空格標記為 "Y" 以進行列印！');
+        return;
+    }
+    
+    alert(`✅ 已成功將 ${selectedCount} 筆發票資料存檔！\n系統即將彈出列印視窗，請確認印表機已開機。\n\n⚠️ 提示：若瀏覽器阻擋彈出視窗，請在網址列右側設定「一律允許彈出式視窗」。`);
+    
+    // 依序開啟列印視窗 (利用微小延遲避免瀏覽器當機)
+    cidsToPrint.forEach((cid, index) => {
+        setTimeout(() => {
+            window.open(`/print_invoice/${cid}/${year}/${month}`, '_blank');
+        }, index * 600); 
+    });
+    
+    // 延遲後自動重新整理頁面，讓剛剛印完的客戶顯示綠色的「已列印」標籤
+    setTimeout(() => location.reload(), cidsToPrint.length * 600 + 1500);
+}
+</script>
+{% endblock %}

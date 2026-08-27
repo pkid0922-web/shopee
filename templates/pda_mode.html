@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PDA 極速掃碼模式</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f6f9; overscroll-behavior-y: none; }
+        .pda-header { background-color: #343a40; color: white; padding: 15px; text-align: center; font-size: 1.2rem; font-weight: bold; position: sticky; top: 0; z-index: 100; }
+        
+        /* 唯讀狀態下給點灰底提示，手動輸入時變白底 */
+        #barcodeInput { font-size: 1.5rem; text-align: center; letter-spacing: 2px; background-color: #e9ecef; }
+        #barcodeInput:not([readonly]) { background-color: #ffffff; }
+        
+        .product-card { background: white; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); padding: 20px; margin-top: 15px; }
+        .big-qty { font-size: 2.5rem; text-align: center; font-weight: bold; color: #dc3545; height: 70px; }
+    </style>
+</head>
+<body>
+
+    <div class="pda-header d-flex justify-content-between align-items-center">
+        <a href="/" class="text-white text-decoration-none"><i class="fa-solid fa-chevron-left fs-3"></i></a>
+        <span><i class="fa-solid fa-barcode me-2"></i>PDA 極速盤點/打單</span>
+        <div style="width: 30px;"></div> 
+    </div>
+
+    <div class="container mt-3">
+        
+        <div class="input-group mb-3 shadow-sm rounded-3">
+            <span class="input-group-text bg-primary text-white border-primary"><i class="fa-solid fa-barcode fs-4"></i></span>
+            <input type="text" id="barcodeInput" class="form-control form-control-lg border-primary border-2 fw-bold" 
+                   placeholder="請扣下板機掃描..." readonly autocomplete="off">
+            <button class="btn btn-outline-primary border-2 px-3" type="button" id="manualBtn" title="切換手動輸入">
+                <i class="fa-regular fa-keyboard fs-4"></i>
+            </button>
+        </div>
+
+        <div id="productDisplay" class="product-card d-none">
+            <div class="text-muted small" id="showBarcode"></div>
+            <h2 class="fw-bold text-dark mt-1" id="showName">商品名稱</h2>
+            
+            <div class="row mt-4 align-items-center">
+                <div class="col-4 text-center">
+                    <span class="text-muted d-block small">庫存</span>
+                    <span class="fs-4 fw-bold" id="showStock">0</span>
+                </div>
+                <div class="col-8">
+                    <input type="number" id="qtyInput" class="form-control big-qty" 
+                           placeholder="數量" pattern="[0-9]*" inputmode="numeric">
+                </div>
+            </div>
+            
+            <button id="saveBtn" class="btn btn-danger w-100 py-3 fs-4 fw-bold mt-4 rounded-pill shadow">
+                <i class="fa-solid fa-check me-2"></i>確認數量 (Enter)
+            </button>
+        </div>
+
+        <div class="mt-4">
+            <h6 class="fw-bold text-muted mb-2"><i class="fa-solid fa-list-check me-2"></i>已掃描暫存清單</h6>
+            <ul class="list-group" id="scanList"></ul>
+        </div>
+        
+    </div>
+
+<script>
+    const barcodeInput = document.getElementById('barcodeInput');
+    const qtyInput = document.getElementById('qtyInput');
+    const productDisplay = document.getElementById('productDisplay');
+    const saveBtn = document.getElementById('saveBtn');
+    const manualBtn = document.getElementById('manualBtn');
+    
+    let currentProduct = null;
+    let barcodeBuffer = "";
+    let lastKeyTime = Date.now();
+
+    // --- 1. 手動輸入模式切換 (防護破損條碼) ---
+    manualBtn.addEventListener('click', () => {
+        if (barcodeInput.hasAttribute('readonly')) {
+            barcodeInput.removeAttribute('readonly');
+            barcodeInput.setAttribute('inputmode', 'numeric');
+            barcodeInput.focus();
+            manualBtn.classList.replace('btn-outline-primary', 'btn-primary');
+            manualBtn.innerHTML = '<i class="fa-solid fa-keyboard text-white fs-4"></i>';
+            barcodeInput.placeholder = "請輸入條碼後按 Enter...";
+        } else {
+            barcodeInput.setAttribute('readonly', 'readonly');
+            barcodeInput.blur();
+            manualBtn.classList.replace('btn-primary', 'btn-outline-primary');
+            manualBtn.innerHTML = '<i class="fa-regular fa-keyboard fs-4"></i>';
+            barcodeInput.placeholder = "請扣下板機掃描...";
+        }
+    });
+
+    // --- 2. 攔截 PDA 雷射掃描槍的實體鍵盤訊號 ---
+    document.addEventListener('keydown', function(e) {
+        // 💡 關鍵：如果焦點正在輸入數量，千萬不要攔截！讓原生小鍵盤處理
+        if (e.target.id === 'qtyInput') return;
+        
+        // 如果是手動輸入模式，我們只負責抓 Enter 鍵來搜尋
+        if (!barcodeInput.hasAttribute('readonly')) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                let code = barcodeInput.value.trim();
+                if(code) executeSearch(code);
+            }
+            return;
+        }
+
+        // --- 以下是「極速掃描模式 (readonly)」的核心幽靈攔截邏輯 ---
+        const currentTime = Date.now();
+        
+        // 掃描槍輸入速度通常 < 20ms，如果大於 200ms 視為全新的一次掃描，防呆清空舊暫存
+        if (currentTime - lastKeyTime > 200) {
+            barcodeBuffer = "";
+        }
+        lastKeyTime = currentTime;
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const code = barcodeBuffer.trim();
+            barcodeBuffer = ""; // 清空緩衝區
+            barcodeInput.value = ""; 
+            if (code) executeSearch(code);
+        } else if (e.key.length === 1) { // 確保接住的是數字或字母
+            barcodeBuffer += e.key;
+            barcodeInput.value = barcodeBuffer; // 同步顯示在畫面上讓你看見
+        }
+    });
+
+    // --- 3. 執行搜尋 API ---
+    async function executeSearch(code) {
+        try {
+            const res = await fetch(`/api/search_products?q=${code}`);
+            const data = await res.json();
+            
+            if (data.length > 0) {
+                currentProduct = data[0]; 
+                document.getElementById('showBarcode').innerText = currentProduct.barcode || currentProduct.code1;
+                document.getElementById('showName').innerText = currentProduct.name;
+                document.getElementById('showStock').innerText = currentProduct.stock;
+                
+                productDisplay.classList.remove('d-none');
+                
+                // 掃描成功後，游標自動跳到「數量」並彈出九宮格數字鍵盤
+                qtyInput.value = '1';
+                qtyInput.focus(); 
+                qtyInput.select();
+                
+                // 防呆：如果剛剛是手動輸入，自動切回唯讀雷射模式
+                if (!barcodeInput.hasAttribute('readonly')) {
+                    manualBtn.click();
+                }
+            } else {
+                alert('找不到商品！');
+                barcodeBuffer = "";
+                barcodeInput.value = "";
+            }
+        } catch (err) {
+            alert('連線異常！請確認網路狀態。');
+        }
+    }
+
+    // --- 4. 數量框按下 Enter 或是點擊「確認」按鈕 ---
+    qtyInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveItem();
+        }
+    });
+    saveBtn.addEventListener('click', saveItem);
+
+    // --- 5. 儲存商品並回到等待掃描狀態 ---
+    function saveItem() {
+        if (!currentProduct) return;
+        const q = qtyInput.value;
+        
+        const li = `<li class="list-group-item d-flex justify-content-between align-items-center fw-bold">
+                        <div>${currentProduct.name}</div>
+                        <span class="badge bg-danger rounded-pill fs-6 px-3">${q}</span>
+                    </li>`;
+        document.getElementById('scanList').insertAdjacentHTML('afterbegin', li);
+        
+        productDisplay.classList.add('d-none');
+        currentProduct = null;
+        barcodeInput.value = ""; // 清空畫面
+        
+        // 焦點抽離數量框，收起小鍵盤
+        document.activeElement.blur();
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,183 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4">
+    <h3 class="fw-bold" style="color: #20c997;"><i class="fa-solid fa-truck-fast me-2"></i>開立指配單 (廠商直寄)</h3>
+    <p class="text-muted small">此步驟僅為記錄欲發送給廠商的直寄需求，送出後不扣庫存，待收到廠商出貨通知後，才由首頁進行「核實轉單」並產生進銷貨帳款。</p>
+</div>
+
+<style>
+    .cust-search-results { position: absolute; z-index: 1050; width: 100%; top: 100%; left: 0; background: white; border: 1px solid #e0e0e0; border-radius: 0 0 10px 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); display: none; max-height: 250px; overflow-y: auto; }
+    .cust-search-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f8f9fa; transition: 0.2s; }
+    .cust-search-item:last-child { border-bottom: none; }
+    .cust-search-item:hover { background: #fdfaf5; }
+    .cust-search-item.active { background: #20c997; color: white; }
+    
+    #searchOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: none; justify-content: center; align-items: center; outline: none; }
+    .search-modal { background: white; width: 85%; max-width: 1100px; max-height: 80vh; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+    .search-body { flex: 1; overflow-y: auto; padding: 10px; }
+    .search-row { cursor: pointer; border-bottom: 1px solid #eee; }
+    .search-row.active td { background-color: #20c997 !important; color: white !important; }
+    .search-row.active td * { color: white !important; } 
+    .search-row td { padding: 15px; white-space: nowrap; }
+</style>
+
+<form action="/save_dropship" method="POST" id="dsForm">
+    <div class="card rounded-card border-0 shadow-sm p-4 mb-4 bg-white" style="border-left: 5px solid #20c997 !important;">
+        <div class="row g-4">
+            <div class="col-md-6 position-relative">
+                <label class="small fw-bold" style="color: #20c997;">1. 指定收件客戶 (輸入編號或簡稱搜尋)</label>
+                <input type="text" id="custSearch" class="form-control form-control-lg shadow-sm" style="border-color: #20c997;" placeholder="請輸入客戶編號或簡稱..." autocomplete="off" required>
+                <input type="hidden" name="customer_id" id="hiddenCustId">
+                <div id="custDropdown" class="cust-search-results text-dark"></div>
+            </div>
+            
+            <div class="col-md-6">
+                <label class="small fw-bold text-danger">2. 未來轉單的歸屬月帳 (數字)</label>
+                <input type="number" name="billing_month" class="form-control form-control-lg border-danger shadow-sm" value="{{ month }}" required>
+            </div>
+        </div>
+    </div>
+
+    <div class="card rounded-card border-0 shadow-sm p-3 mb-4 text-white" style="background-color: #1a1e21;">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3 position-relative">
+                <label class="small">1.條碼/名稱/自編 (Enter搜尋)</label>
+                <input type="text" id="scI" class="form-control bg-transparent text-white border-secondary" autocomplete="off">
+            </div>
+            <div class="col-md-4">
+                <label class="small">名稱</label>
+                <input type="text" id="naI" class="form-control bg-dark text-white border-0" readonly tabindex="-1">
+            </div>
+            <div class="col-md-2">
+                <label class="small">2.數量</label>
+                <input type="number" id="qtI" class="form-control" placeholder="輸入數量">
+            </div>
+            <div class="col-md-3">
+                <label class="small">3.備註 (Enter 存檔)</label>
+                <input type="text" id="reI" class="form-control" placeholder="給廠商或內部的備註">
+            </div>
+        </div>
+    </div>
+
+    <table class="table bg-white rounded-4 shadow-sm overflow-hidden align-middle">
+        <thead class="table-dark small">
+            <tr>
+                <th class="ps-3 py-3">條碼</th>
+                <th class="py-3">指配商品名稱</th>
+                <th width="150" class="py-3 text-center">直寄數量</th>
+                <th class="py-3">商品備註</th>
+                <th width="50"></th>
+            </tr>
+        </thead>
+        <tbody id="itemList"></tbody>
+    </table>
+    
+    <div class="text-end mt-4">
+        <button type="submit" class="btn text-white px-5 py-3 rounded-pill fw-bold shadow fs-5" style="background-color: #20c997;">送出指配單</button>
+    </div>
+</form>
+
+<div id="searchOverlay" tabindex="-1">
+    <div class="search-modal">
+        <div class="search-body">
+            <table class="table align-middle">
+                <thead class="sticky-top bg-white">
+                    <tr class="text-muted small">
+                        <th>商品名稱</th><th>國際條碼</th><th>自編碼</th><th>目前庫存</th>
+                    </tr>
+                </thead>
+                <tbody id="resList"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+// 客戶搜尋
+const custData = [ {% for c in customers %} { id: "{{ c.id }}", no: "{{ c.cust_no }}", name: "{{ c.short_name }}" }, {% endfor %} ];
+const custSearch = document.getElementById('custSearch'), custDropdown = document.getElementById('custDropdown'), hiddenCustId = document.getElementById('hiddenCustId');
+let filteredCusts = [], custActiveIdx = -1;
+
+custSearch.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim(); hiddenCustId.value = ''; 
+    if (!q) { filteredCusts = custData; } else { filteredCusts = custData.filter(c => c.no.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)); }
+    showCustDropdown();
+});
+
+function showCustDropdown() {
+    if (filteredCusts.length === 0) { custDropdown.innerHTML = '<div class="p-3 text-muted small text-center">找不到相符的客戶</div>'; } 
+    else { custDropdown.innerHTML = filteredCusts.map((c, i) => `<div class="cust-search-item" onclick="selectCust(${i})" id="cust-row-${i}"><span class="fw-bold">${c.no}</span> - <span>${c.name}</span></div>`).join(''); }
+    custDropdown.style.display = 'block'; custActiveIdx = -1;
+}
+
+function selectCust(idx) {
+    const c = filteredCusts[idx]; custSearch.value = `${c.no} - ${c.name}`; hiddenCustId.value = c.id;
+    custDropdown.style.display = 'none'; document.getElementById('scI').focus();
+}
+
+custSearch.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); custActiveIdx = Math.min(custActiveIdx + 1, filteredCusts.length - 1); updateCustActive(); } 
+    else if (e.key === 'ArrowUp') { e.preventDefault(); custActiveIdx = Math.max(custActiveIdx - 1, 0); updateCustActive(); } 
+    else if (e.key === 'Enter') { e.preventDefault(); if (custActiveIdx > -1 && filteredCusts.length > 0) selectCust(custActiveIdx); else if (filteredCusts.length === 1) selectCust(0); } 
+    else if (e.key === 'Escape') { custDropdown.style.display = 'none'; }
+});
+function updateCustActive() { document.querySelectorAll('.cust-search-item').forEach((el, i) => { el.classList.toggle('active', i === custActiveIdx); if (i === custActiveIdx) el.scrollIntoView({ block: 'nearest' }); }); }
+document.addEventListener('click', e => { if (!custSearch.contains(e.target) && !custDropdown.contains(e.target)) custDropdown.style.display = 'none'; });
+document.getElementById('dsForm').addEventListener('submit', function(e) { if (!hiddenCustId.value) { e.preventDefault(); alert('請從下拉選單中正確選擇客戶！'); custSearch.focus(); } });
+
+// 商品搜尋與鍵盤流
+const scI=document.getElementById('scI'), qtI=document.getElementById('qtI'), reI=document.getElementById('reI'), overlay=document.getElementById('searchOverlay'), resList=document.getElementById('resList');
+let curP=null, sList=[], aIdx=-1;
+
+scI.addEventListener('keydown', e => { 
+    if(e.key === 'Enter'){ 
+        e.preventDefault(); if(overlay.style.display === 'flex') return;
+        if(!hiddenCustId.value) { alert('請先選擇客戶！'); custSearch.focus(); return; }
+        searchProd(scI.value); 
+    }
+});
+
+function searchProd(v){ 
+    if(!v) return;
+    fetch(`/api/search_products?q=${v}`).then(r=>r.json()).then(d=>{ 
+        if(d.length === 1) { selectProd(d[0]); } 
+        else if(d.length > 1){ sList=d; showM(); } 
+        else { alert('找不到商品'); scI.value=''; }
+    });
+}
+
+function showM(){ 
+    resList.innerHTML = sList.map((p,i)=>`<tr class="search-row" onclick="selectProd(sList[${i}])"><td><b class="fs-5">${p.name}</b></td><td>${p.barcode||''}</td><td>${p.code1||''}</td><td class="text-secondary">${p.stock}</td></tr>`).join(''); 
+    overlay.style.display='flex'; overlay.focus(); aIdx = 0; 
+    document.addEventListener('keydown', mK); updateA(); 
+}
+
+function mK(e){ 
+    if(overlay.style.display !== 'flex') return;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); aIdx = Math.min(aIdx+1, sList.length-1); updateA(); } 
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); aIdx = Math.max(aIdx-1, 0); updateA(); } 
+    else if(e.key === 'Enter'){ e.preventDefault(); e.stopPropagation(); if(aIdx >= 0 && aIdx < sList.length) { selectProd(sList[aIdx]); } } 
+    else if(e.key === 'Escape'){ hideM(); }
+}
+
+function updateA(){ 
+    const rows = resList.querySelectorAll('.search-row');
+    rows.forEach((el, i) => { el.classList.remove('active'); if (i === aIdx) { el.classList.add('active'); el.scrollIntoView({ block: 'nearest' }); } }); 
+}
+
+function hideM(){ overlay.style.display='none'; document.removeEventListener('keydown', mK); scI.focus(); }
+
+function selectProd(p){ curP=p; scI.value=p.barcode||p.code1; document.getElementById('naI').value=p.name; hideM(); qtI.focus(); qtI.select(); }
+
+qtI.addEventListener('keypress', e => { if(e.key==='Enter'){ e.preventDefault(); reI.focus(); }});
+
+reI.addEventListener('keypress', e => { 
+    if(e.key==='Enter'){ 
+        e.preventDefault(); if(!curP) return;
+        const h = `<tr><td class="ps-3">${curP.barcode||''}</td><td><input type="hidden" name="product_id[]" value="${curP.id}"><b>${curP.name}</b></td><td><input type="number" name="qty[]" class="form-control text-center fw-bold text-success fs-5 bg-success-subtle border-success" value="${qtI.value}"></td><td><input type="text" name="remark[]" class="form-control" value="${reI.value}"></td><td><button type="button" class="btn btn-link text-danger p-0" onclick="this.closest('tr').remove()"><i class="fa-solid fa-xmark fs-4"></i></button></td></tr>`;
+        document.getElementById('itemList').insertAdjacentHTML('afterbegin', h); curP=null; 
+        ['scI','naI','qtI','reI'].forEach(id=>document.getElementById(id).value=''); scI.focus(); 
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4">
+    <h3 class="fw-bold text-success"><i class="fa-solid fa-money-check-dollar me-2"></i>應付帳款管理 (廠商貨款)</h3>
+    <p class="text-muted small">系統會依據您廠商資料中所設定的「結帳日」與「月結天數」，自動推算付款日期。</p>
+</div>
+
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+{% for message in messages %}
+<div class="alert alert-success rounded-4 border-0 shadow-sm mb-4 fw-bold"><i
+        class="fa-solid fa-check-circle me-2"></i>{{ message }}</div>
+{% endfor %}
+{% endif %}
+{% endwith %}
+
+<div class="card rounded-card border-0 shadow-sm p-4 mb-4 bg-white">
+    <form action="/payables" method="GET" class="row g-3 align-items-end">
+        <div class="col-md-4">
+            <label class="small fw-bold text-danger mb-1">付款日區間 (起始)</label>
+            <input type="date" name="start_date" class="form-control border-danger bg-light fw-bold"
+                value="{{ start_date }}">
+        </div>
+        <div class="col-md-4">
+            <label class="small fw-bold text-danger mb-1">付款日區間 (結束)</label>
+            <input type="date" name="end_date" class="form-control border-danger bg-light fw-bold"
+                value="{{ end_date }}">
+        </div>
+        <div class="col-md-4">
+            <button type="submit" class="btn btn-dark w-100 rounded-pill fw-bold shadow-sm">查詢應付款項</button>
+        </div>
+    </form>
+</div>
+
+<div class="card rounded-card border-0 shadow-sm bg-white overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light text-muted small">
+                <tr>
+                    <th class="ps-4 py-3">應付款日期</th>
+                    <th class="py-3">供應廠商</th>
+                    <th class="py-3 text-center">歸屬進貨月帳</th>
+                    <th class="text-end py-3">本期應付總額</th>
+                    <th class="text-end py-3">已付金額</th>
+                    <th class="py-3">供應廠商</th>
+                    <th class="text-end py-3">本期進貨(A)</th>
+                    <th class="text-end py-3 text-danger">退貨抵扣(B)</th>
+                    <th class="text-end py-3">已付金額(C)</th>
+                    <th class="text-end py-3 text-danger">未付餘額</th>
+                    <th class="text-center py-3" width="300">快速登錄付款</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in results %}
+                <tr class="{% if r.unpaid <= 0 %}bg-success bg-opacity-10{% endif %}">
+                    <td class="ps-4">
+                        <div class="fw-bold fs-5 {% if r.unpaid > 0 %}text-danger{% else %}text-success{% endif %}">{{
+                            r.pay_date.strftime('%Y-%m-%d') }}</div>
+                    </td>
+                    <td>
+                        <div class="fw-bold text-dark">{{ r.vendor.full_name }}</div>
+                        <div class="small text-muted mt-1">{{ r.vendor.short_name }} | 共 {{ r.po_count }} 張進貨單</div>
+                    </td>
+                    <td class="text-end fw-bold text-dark">$ {{ "{:,.0f}".format(r.ap) }}<br><small class="text-muted">歸屬: {{ r.billing_year }}/{{ r.billing_month }}</small></td>
+                    <td class="text-end fw-bold text-danger">- $ {{ "{:,.0f}".format(r.return_amt) }}</td>
+                    <td class="text-end fw-bold text-success">- $ {{ "{:,.0f}".format(r.paid) }}</td>
+                    <td class="text-end fw-bold text-danger fs-5">$ {{ "{:,.0f}".format(r.unpaid) }}</td>
+                    <td class="pe-4">
+                        {% if r.unpaid > 0 %}
+                        <form action="/add_vendor_payment" method="POST" class="d-flex gap-2 justify-content-end mb-0">
+                            <input type="hidden" name="vendor_id" value="{{ r.vendor.id }}">
+                            <input type="hidden" name="year" value="{{ r.billing_year }}">
+                            <input type="hidden" name="month" value="{{ r.billing_month }}">
+                            <input type="number" name="amount"
+                                class="form-control form-control-sm border-success shadow-sm" style="width: 110px;"
+                                placeholder="實付金額" value="{{ r.unpaid|int }}" required>
+                            <select name="method" class="form-select form-select-sm border-success shadow-sm"
+                                style="width: 90px;">
+                                <option value="匯款">匯款</option>
+                                <option value="現金">現金</option>
+                                <option value="支票">支票</option>
+                            </select>
+                            <button type="submit"
+                                class="btn btn-sm btn-success rounded-pill fw-bold px-3 shadow-sm">付款</button>
+                        </form>
+                        {% else %}
+                        <div class="text-center text-success fw-bold"><i class="fa-solid fa-check-double me-1"></i>本期已結清
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not results %}
+                <tr>
+                    <td colspan="7" class="text-center py-5 text-muted">此期間內無需支付的廠商貨款</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

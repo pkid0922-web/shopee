@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>撿貨單列印 - {{ slip.slip_no }}</title>
+    <style>
+        body { font-family: "Microsoft JhengHei", "微軟正黑體", sans-serif; color: #000; margin: 0; padding: 0; background: #fff; }
+        .print-container { width: 100%; max-width: 21cm; margin: 0 auto; padding: 0.5cm; box-sizing: border-box; }
+        
+        /* 表頭壓縮 */
+        .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 10px; }
+        .header h1 { margin: 0 0 5px 0; font-size: 18pt; letter-spacing: 2px; }
+        .header p { margin: 0; font-size: 10pt; color: #333; }
+        .info-row { display: flex; justify-content: space-between; font-size: 10pt; margin-bottom: 8px; }
+        
+        /* 表格緊湊化 */
+        .item-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        /* 關鍵：縮小字體與 padding 來大幅增加容納筆數 */
+        .item-table th, .item-table td { border: 1px solid #000; padding: 4px 6px; font-size: 10pt; }
+        .item-table th { background-color: #f2f2f2; text-align: left; }
+        .item-table .text-center { text-align: center; }
+        
+        /* 核對框縮小 */
+        .check-box { width: 16px; height: 16px; border: 1px solid #000; display: inline-block; vertical-align: middle; }
+        
+        /* 列印專用 CSS：壓縮邊界 */
+        @media print {
+            @page { size: A4 portrait; margin: 0.8cm; }
+            .no-print { display: none; }
+            .print-container { padding: 0; }
+        }
+        .btn-print { margin: 15px; padding: 8px 16px; font-size: 12pt; cursor: pointer; background: #000; color: #fff; border: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="text-align: center;">
+        <button class="btn-print" onclick="window.print()">🖨️ 確認列印 (A4 緊湊版)</button>
+    </div>
+    
+    <div class="print-container">
+        <div class="header">
+            <h1>衣橙企業 - 現場撿貨作業單</h1>
+            <p>單據編號：{{ slip.slip_no }}</p>
+        </div>
+        
+        <div class="info-row">
+            <div><strong>指定客戶：</strong>{{ slip.customer_ref.full_name if slip.customer_ref else '未指定' }}</div>
+            <div><strong>發送時間：</strong>{{ slip.date.strftime('%Y-%m-%d %H:%M') }}</div>
+        </div>
+        
+        <table class="item-table">
+            <thead>
+                <tr>
+                    <th width="20%">國際條碼</th>
+                    <th width="45%">商品名稱</th>
+                    <th width="15%" class="text-center">應撿數量</th>
+                    <th width="20%" class="text-center">核對確認</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in slip.items %}
+                <tr>
+                    <td style="font-family: monospace;">{{ item.product_ref.barcode or '---' }}</td>
+                    <td><strong>{{ item.product_ref.name }}</strong></td>
+                    <td class="text-center" style="font-size: 12pt; font-weight: bold;">{{ item.qty }}</td>
+                    <td class="text-center"><span class="check-box"></span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div style="margin-top: 15px; font-size: 10pt; display: flex; justify-content: space-between;">
+            <div>撿貨人員簽名：____________________</div>
+            <div>查核人員簽名：____________________</div>
+        </div>
+    </div>
+</body>
+<script>window.onload = function() { window.print(); }</script>
+</html>

@@ -1,0 +1,112 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4">
+    <h3 class="fw-bold text-primary"><i class="fa-solid fa-truck-field me-2"></i>廠商資料管理</h3>
+</div>
+
+<div class="card rounded-card border-0 shadow-sm p-4 mb-5 bg-white">
+    <form action="/add_vendor" method="POST">
+        <div class="row">
+            <div class="col-md-8 border-end pe-4">
+                <div class="row g-3">
+                    <div class="col-md-4"><label class="small fw-bold">廠商編號</label><input type="text" name="vendor_no" class="form-control shadow-sm" required></div>
+                    <div class="col-md-4"><label class="small fw-bold">廠商簡稱</label><input type="text" name="short_name" class="form-control shadow-sm"></div>
+                    <div class="col-md-4"><label class="small fw-bold">廠商統編</label><input type="text" name="tax_id" class="form-control shadow-sm"></div>
+                    
+                    <div class="col-md-12"><label class="small fw-bold">廠商正式全名</label><input type="text" name="full_name" class="form-control shadow-sm" required></div>
+                    
+                    <div class="col-md-4"><label class="small fw-bold">聯絡人姓名</label><input type="text" name="contact_person" class="form-control shadow-sm"></div>
+                    <div class="col-md-4"><label class="small fw-bold">聯絡電話</label><input type="text" name="phone" class="form-control shadow-sm"></div>
+                    <div class="col-md-4"><label class="small fw-bold">傳真號碼</label><input type="text" name="fax" class="form-control shadow-sm"></div>
+                    
+                    <div class="col-md-6"><label class="small fw-bold text-primary">每個月結帳日 (號)</label><input type="number" name="closing_day" class="form-control border-primary shadow-sm" value="20"></div>
+                    <div class="col-md-6"><label class="small fw-bold text-primary">付款/月結天數 (天)</label><input type="number" name="payment_day" class="form-control border-primary shadow-sm" value="30"></div>
+                    
+                    <div class="col-md-12"><label class="small fw-bold">倉庫/發貨地址</label><input type="text" name="warehouse_address" class="form-control shadow-sm"></div>
+                    <div class="col-md-12"><label class="small fw-bold">匯款銀行帳號</label><input type="text" name="bank_account" class="form-control shadow-sm"></div>
+                </div>
+            </div>
+            
+            <div class="col-md-4 ps-4">
+                <div class="p-4 rounded-4" style="background-color: #fdfaf5; border: 1px solid #faeccd;">
+                    <h6 class="fw-bold text-warning mb-4"><i class="fa-solid fa-tags me-2"></i>疊加式折扣規則 (T1~T3)</h6>
+                    <div class="mb-3">
+                        <label class="small text-muted">第一層折扣</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-0">滿</span><input type="number" name="t1_amt" class="form-control border-0" placeholder="金額">
+                            <span class="input-group-text bg-white border-0">打</span><input type="number" name="t1_dis" class="form-control border-0" value="100"><span class="input-group-text bg-white border-0">折</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="small text-muted">第二層折扣</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-0">滿</span><input type="number" name="t2_amt" class="form-control border-0" placeholder="金額">
+                            <span class="input-group-text bg-white border-0">打</span><input type="number" name="t2_dis" class="form-control border-0" value="100"><span class="input-group-text bg-white border-0">折</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="small text-muted">第三層折扣</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-0">滿</span><input type="number" name="t3_amt" class="form-control border-0" placeholder="金額">
+                            <span class="input-group-text bg-white border-0">打</span><input type="number" name="t3_dis" class="form-control border-0" value="100"><span class="input-group-text bg-white border-0">折</span>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 py-3 rounded-pill fw-bold shadow mt-3">儲存廠商並建立檔案</button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-hover bg-white rounded-4 shadow-sm overflow-hidden align-middle">
+        <thead class="small" style="background-color: #2c3e50; color: #ffffff;">
+            <tr>
+                <th class="ps-4 py-3">編號/簡稱</th>
+                <th class="py-3">正式全名/統編</th>
+                <th class="py-3">聯絡人/電話</th>
+                <th class="py-3">財務規則/匯款帳號</th>
+                <th class="py-3">地址/傳真</th>
+                <th class="text-center py-3">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in vendors %}
+            <tr class="border-bottom">
+                <td class="ps-4">
+                    <div class="fw-bold text-dark fs-6">{{ v.vendor_no }}</div>
+                    <div class="small fw-bold text-primary">{{ v.short_name }}</div>
+                </td>
+                <td>
+                    <div class="fw-bold text-dark">{{ v.full_name }}</div>
+                    <div class="small text-muted mt-1">統編: {{ v.tax_id or '---' }}</div>
+                </td>
+                <td>
+                    <div class="fw-bold text-dark">{{ v.contact_person or '---' }}</div>
+                    <div class="small text-muted mt-1">電話: {{ v.phone or '---' }}</div>
+                </td>
+                <td>
+                    <div>
+                        <span class="badge bg-light text-dark border">{{ v.closing_day }}號結帳</span>
+                        <span class="badge bg-light text-dark border">月結{{ v.payment_day }}天</span>
+                    </div>
+                    <div class="small text-muted mt-2">帳號: {{ v.bank_account or '---' }}</div>
+                </td>
+                <td>
+                    <div class="small text-dark" style="max-width: 220px; white-space: normal; line-height: 1.4;">
+                        {{ v.warehouse_address or '---' }}
+                    </div>
+                    <div class="small text-muted mt-1">傳真: {{ v.fax or '---' }}</div>
+                </td>
+                <td class="text-center">
+                    <a href="/edit_vendor/{{ v.id }}" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold">修改</a>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not vendors %}
+            <tr><td colspan="6" class="text-center py-5 text-muted">目前尚未建立任何廠商資料</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

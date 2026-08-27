@@ -1,0 +1,42 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4"><h3 class="fw-bold text-success"><i class="fa-solid fa-pen-to-square me-2"></i>修改客戶資料：{{ customer.short_name }}</h3></div>
+<div class="card rounded-card border-0 shadow-sm p-4 bg-white">
+    <form action="/edit_customer/{{ customer.id }}" method="POST" class="row g-3">
+        <div class="col-md-3"><label class="small fw-bold">客戶編號</label><input type="text" name="cust_no" class="form-control" value="{{ customer.cust_no }}"></div>
+        <div class="col-md-3"><label class="small fw-bold">客戶簡稱</label><input type="text" name="short_name" class="form-control" value="{{ customer.short_name }}"></div>
+        <div class="col-md-6"><label class="small fw-bold">客戶全名</label><input type="text" name="full_name" class="form-control" value="{{ customer.full_name }}"></div>
+        
+        <div class="col-md-3"><label class="small fw-bold text-primary">結帳日 (號)</label><input type="number" name="closing_day" class="form-control border-primary" value="{{ customer.closing_day }}"></div>
+        <div class="col-md-3"><label class="small fw-bold text-primary">月結天數 (天)</label><input type="number" name="payment_day" class="form-control border-primary" value="{{ customer.payment_day }}"></div>
+        <div class="col-md-3"><label class="small fw-bold text-danger">售價折數 (60)</label><input type="number" name="price_discount" class="form-control border-danger" value="{{ (customer.price_discount * 100)|int }}"></div>
+        <div class="col-md-3"><label class="small fw-bold text-danger">後扣 (%)</label><input type="number" name="post_discount" class="form-control border-danger" value="{{ customer.post_discount|int }}"></div>
+
+        <div class="col-md-3"><label class="small fw-bold">聯絡人</label><input type="text" name="contact_person" class="form-control" value="{{ customer.contact_person }}"></div>
+        <div class="col-md-3"><label class="small fw-bold text-primary">手機</label><input type="text" name="mobile" class="form-control" value="{{ customer.mobile }}"></div>
+        <div class="col-md-3"><label class="small fw-bold">公司電話</label><input type="text" name="phone" class="form-control" value="{{ customer.phone }}"></div>
+        
+        <div class="col-md-3">
+            <label class="small fw-bold text-info">主要負責業務</label>
+            <select name="user_id" class="form-select border-info">
+                <option value="">(未指定)</option>
+                {% for u in users %}
+                <option value="{{ u.id }}" {% if customer.user_id == u.id %}selected{% endif %}>{{ u.employee.name if u.employee else u.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-3"><label class="small fw-bold">客戶統編</label><input type="text" name="tax_id" class="form-control" value="{{ customer.tax_id }}"></div>
+        <div class="col-md-3"><label class="small fw-bold">傳真</label><input type="text" name="fax" class="form-control" value="{{ customer.fax }}"></div>
+        <div class="col-md-6"><label class="small fw-bold">匯款帳號</label><input type="text" name="bank_account" class="form-control" value="{{ customer.bank_account }}"></div>
+        
+        <div class="col-md-6"><label class="small fw-bold text-muted">送貨地址</label><input type="text" name="shipping_address" class="form-control" value="{{ customer.shipping_address }}"></div>
+        <div class="col-md-4"><label class="small fw-bold text-muted">發票地址</label><input type="text" name="invoice_address" class="form-control" value="{{ customer.invoice_address }}"></div>
+        <div class="col-md-2 d-flex align-items-end pb-1">
+            <div class="form-check form-switch ms-2"><input class="form-check-input" type="checkbox" name="has_invoice" {% if customer.has_invoice %}checked{% endif %}><label class="form-check-label fw-bold">開立發票</label></div>
+        </div>
+        
+        <div class="col-12 text-end mt-4"><button type="submit" class="btn btn-success px-5 py-3 rounded-pill shadow fw-bold">儲存更新資料</button></div>
+    </form>
+</div>
+{% endblock %}

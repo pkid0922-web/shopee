@@ -1,0 +1,101 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+    /* 仿照日系 SaaS 的卡片與按鈕風格 */
+    body { background-color: #eef1f5; }
+    .jp-card { background: #ffffff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); padding: 45px 50px; max-width: 600px; margin: 40px auto; border: 1px solid #e1e5eb; }
+    .jp-icon-box { background: #5a748c; color: white; width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.4rem; margin-right: 15px; flex-shrink: 0; box-shadow: 0 4px 10px rgba(90, 116, 140, 0.3); }
+    .jp-title { display: flex; align-items: center; font-weight: 800; color: #1a2a3a; font-size: 1.5rem; margin-bottom: 25px; letter-spacing: 0.5px; }
+    .jp-text { color: #3a4a5a; font-size: 1.05rem; line-height: 1.7; margin-bottom: 35px; font-weight: 500; }
+    
+    /* 完美復刻圖片中的空心圓角箭頭按鈕 */
+    .jp-btn { display: inline-flex; align-items: center; justify-content: start; border: 1.5px solid #5a748c; color: #3a4a5a; background: transparent; border-radius: 50px; padding: 12px 30px; font-weight: bold; transition: all 0.2s ease; font-size: 1.1rem; width: auto; min-width: 260px; margin-bottom: 12px; }
+    .jp-btn:hover { background: #f4f7fa; color: #1a2a3a; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-color: #3a4a5a; }
+    .jp-btn i { margin-right: 15px; font-size: 1.1rem; color: #5a748c; }
+
+    /* 下拉選單 CSS (保留以維持鍵盤極速搜尋功能) */
+    .ven-search-results { position: absolute; z-index: 1050; width: 100%; top: 100%; left: 0; background: white; border: 1px solid #e0e0e0; border-radius: 0 0 10px 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); display: none; max-height: 250px; overflow-y: auto; }
+    .ven-search-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f8f9fa; transition: 0.2s; }
+    .ven-search-item:last-child { border-bottom: none; }
+    .ven-search-item:hover { background: #fdfaf5; }
+    .ven-search-item.active { background: #5a748c; color: white; }
+</style>
+
+<div class="jp-card">
+    <div class="jp-title">
+        <div class="jp-icon-box"><i class="fa-solid fa-gear"></i></div>
+        廠商別 對帳單列印
+    </div>
+    <div class="jp-text">
+        請選擇欲結算的廠商與對帳期間。<br>
+        系統將自動為您彙整該區間的進貨、退貨抵扣與已付紀錄，產生可用於對帳的明細表。
+    </div>
+
+    <form action="/print_vendor_statement" method="POST" id="vendorStatementForm">
+        <div class="mb-4 position-relative">
+            <label class="small fw-bold mb-2" style="color: #5a748c;">選擇供應廠商</label>
+            <input type="text" id="venSearch" class="form-control form-control-lg shadow-none" style="border: 1px solid #ced4da; background: #f8f9fa;" placeholder="輸入廠商編號或簡稱..." autocomplete="off" required>
+            <input type="hidden" name="vendor_id" id="hiddenVenId">
+            <div id="venDropdown" class="ven-search-results text-dark"></div>
+        </div>
+
+        <div class="row g-3 mb-5">
+            <div class="col-6">
+                <label class="small fw-bold mb-2" style="color: #5a748c;">歸屬年份 (西元)</label>
+                <input type="number" name="year" class="form-control form-control-lg shadow-none text-center fw-bold" style="border: 1px solid #ced4da; background: #f8f9fa;" value="{{ current_year }}" required>
+            </div>
+            <div class="col-6">
+                <label class="small fw-bold mb-2" style="color: #5a748c;">歸屬月份</label>
+                <select name="month" class="form-select form-select-lg shadow-none text-center fw-bold" style="border: 1px solid #ced4da; background: #f8f9fa;" required>
+                    {% for i in range(1, 13) %}
+                    <option value="{{ i }}" {% if current_month == i %}selected{% endif %}>{{ i }} 月份</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div>
+            <button type="submit" class="jp-btn"><i class="fa-solid fa-arrow-right"></i>產生對帳單</button>
+        </div>
+    </form>
+</div>
+
+<script>
+// 極速鍵盤搜尋邏輯
+const venData = [
+    {% for v in vendors %}
+    { id: "{{ v.id }}", no: "{{ v.vendor_no }}", name: "{{ v.short_name }}" },
+    {% endfor %}
+];
+const venSearch = document.getElementById('venSearch'), venDropdown = document.getElementById('venDropdown'), hiddenVenId = document.getElementById('hiddenVenId');
+let filteredVens = [], venActiveIdx = -1;
+
+venSearch.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim(); hiddenVenId.value = ''; 
+    if (!q) { filteredVens = venData; } 
+    else { filteredVens = venData.filter(v => v.no.toLowerCase().includes(q) || v.name.toLowerCase().includes(q)); }
+    showVenDropdown();
+});
+
+function showVenDropdown() {
+    if (filteredVens.length === 0) { venDropdown.innerHTML = '<div class="p-3 text-muted small text-center">找不到相符的廠商</div>'; } 
+    else { venDropdown.innerHTML = filteredVens.map((v, i) => `<div class="ven-search-item" onclick="selectVen(${i})" id="ven-row-${i}"><span class="fw-bold">${v.no}</span> - <span>${v.name}</span></div>`).join(''); }
+    venDropdown.style.display = 'block'; venActiveIdx = -1;
+}
+
+function selectVen(idx) {
+    const v = filteredVens[idx]; venSearch.value = `${v.no} - ${v.name}`; hiddenVenId.value = v.id; venDropdown.style.display = 'none';
+}
+
+venSearch.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); venActiveIdx = Math.min(venActiveIdx + 1, filteredVens.length - 1); updateVenActive(); } 
+    else if (e.key === 'ArrowUp') { e.preventDefault(); venActiveIdx = Math.max(venActiveIdx - 1, 0); updateVenActive(); } 
+    else if (e.key === 'Enter') { e.preventDefault(); if (venActiveIdx > -1 && filteredVens.length > 0) selectVen(venActiveIdx); else if (filteredVens.length === 1) selectVen(0); } 
+    else if (e.key === 'Escape') { venDropdown.style.display = 'none'; }
+});
+
+function updateVenActive() { document.querySelectorAll('.ven-search-item').forEach((el, i) => { el.classList.toggle('active', i === venActiveIdx); if (i === venActiveIdx) el.scrollIntoView({ block: 'nearest' }); }); }
+document.addEventListener('click', e => { if (!venSearch.contains(e.target) && !venDropdown.contains(e.target)) venDropdown.style.display = 'none'; });
+document.getElementById('vendorStatementForm').addEventListener('submit', function(e) { if (!hiddenVenId.value) { e.preventDefault(); alert('請從下拉選單中正確選擇廠商！'); venSearch.focus(); } });
+</script>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4">
+    <h3 class="fw-bold text-dark"><i class="fa-solid fa-truck-fast me-2" style="color: #20c997;"></i>核實轉單：指配單 <span class="text-primary">{{ ds.order_no }}</span></h3>
+    <p class="text-muted small">收到廠商的傳真出貨單後，在此核實並一鍵將指配單轉換為「銷貨單」與「進貨單」。</p>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-8">
+        <div class="card rounded-card border-0 shadow-sm p-4 mb-4 bg-white">
+            <h5 class="fw-bold text-success mb-3"><i class="fa-solid fa-arrow-right-to-bracket me-2"></i>即將生成的【銷貨單】(向客戶收款)</h5>
+            <div class="p-3 bg-light rounded-3 mb-4">
+                <div class="row">
+                    <div class="col-6"><span class="text-muted small">指定客戶：</span> <span class="fw-bold">{{ ds.customer_ref.full_name }}</span></div>
+                    <div class="col-6"><span class="text-muted small">歸屬月帳：</span> <span class="fw-bold text-danger">{{ ds.billing_year }} 年 {{ ds.billing_month }} 月</span></div>
+                </div>
+            </div>
+
+            <h5 class="fw-bold text-primary mb-3"><i class="fa-solid fa-boxes-packing me-2"></i>即將生成的【進貨單】(依廠商自動拆單)</h5>
+            {% for v_name, items in po_summary.items() %}
+            <div class="border rounded-3 p-3 mb-3">
+                <h6 class="fw-bold text-dark mb-3"><i class="fa-solid fa-store text-muted me-2"></i>供應廠商：<span class="text-primary">{{ v_name }}</span></h6>
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="text-muted">
+                        <tr>
+                            <th width="20%">條碼</th>
+                            <th width="60%">商品名稱</th>
+                            <th width="20%" class="text-center">數量</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>{{ item.product_ref.barcode or '---' }}</td>
+                            <td class="fw-bold">{{ item.product_ref.name }}</td>
+                            <td class="text-center fw-bold text-success fs-5">{{ item.qty }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card rounded-card border-0 shadow-sm p-4 bg-white border-start border-5" style="border-color: #20c997 !important;">
+            <h5 class="fw-bold text-dark mb-4">轉單說明</h5>
+            <ul class="text-muted small ps-3 mb-4" style="line-height: 1.8;">
+                <li>系統將自動為客戶生成 1 張銷貨單。</li>
+                <li>系統將依據商品的「主要供應商」自動拆分並生成對應的進貨單。</li>
+                <li>進貨加庫存，銷貨扣庫存。一進一出，<b>系統帳面總庫存將維持不變</b>，完美符合直寄邏輯。</li>
+                <li>轉換後，系統將自動計算並扣下該客戶的銷貨利潤。</li>
+            </ul>
+            
+            <form action="/execute_convert_dropship/{{ ds.id }}" method="POST">
+                <button type="submit" class="btn text-white w-100 py-3 rounded-pill fw-bold shadow fs-5" style="background-color: #20c997;">
+                    <i class="fa-solid fa-check-double me-2"></i>確認無誤，一鍵轉單
+                </button>
+            </form>
+            <div class="text-center mt-3">
+                <a href="/" class="text-muted small text-decoration-none">稍後再處理，返回首頁</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

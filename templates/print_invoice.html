@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>發票列印 - {{ customer.short_name }}</title>
+    <style>
+        /* 強制鎖定實體紙張大小，並將瀏覽器預設邊界歸零 */
+        @page {
+            size: 76mm 140mm;
+            margin: 0;
+        }
+        
+        body {
+            /* 點陣印表機必備：細明體，避免印出糊糊的灰階字 */
+            font-family: "MingLiU", "細明體", "Courier New", monospace;
+            margin: 0;
+            padding: 0;
+            width: 76mm;
+            height: 140mm;
+            font-size: 10pt;
+            color: #000;
+            position: relative; /* 建立絕對座標的畫布基準 */
+        }
+
+        /* 用來精準定位的萬用 Class */
+        .abs {
+            position: absolute;
+            white-space: nowrap; /* 確保文字不會自動換行跑版 */
+            line-height: 1;
+        }
+    </style>
+</head>
+<body>
+    {% set total_amt = record.amount|round|int %}
+    {% set sales_amt = (total_amt / 1.05)|round|int %}
+    {% set tax_amt = total_amt - sales_amt %}
+    
+    {% set date_str = record.invoice_date|string %}
+    {% set roc_year = (date_str[0:4]|int) - 1911 %}
+    {% set mm = date_str[5:7] %}
+    {% set dd = date_str[8:10] %}
+
+    <div class="abs" style="left: 12mm; top: 25mm; font-size: 11pt; font-weight: bold;">
+        杉盛股份有限公司
+    </div>
+
+    <div class="abs" style="left: 12mm; top: 30mm;">
+        彰化縣鹿港鎮詔安里吳厝巷56號
+    </div>
+
+    <div class="abs" style="left: 12mm; top: 35mm;">
+        04-7779022 統一編號:42986830
+    </div>
+
+    <div class="abs" style="left: 18mm; top: 39mm;">
+        {{ roc_year }}/{{ mm }}/{{ dd }}
+    </div>
+
+    <div class="abs" style="left: 20mm; top: 44mm;">
+        {{ customer.tax_id or '00000000' }} {{ customer.short_name }}
+    </div>
+
+    <div class="abs" style="left: 14mm; top: 58mm; width: 50mm;">
+        <span style="display:inline-block; width: 22mm;">產品名稱</span>
+        <span style="display:inline-block; width: 10mm; text-align: right;">數量</span>
+        <span style="display:inline-block; width: 16mm; text-align: right;">金額</span>
+    </div>
+
+    <div class="abs" style="left: 10mm; top: 60mm;">
+        --------------------------------
+    </div>
+
+    <div class="abs" style="left: 14mm; top: 65mm; width: 50mm;">
+        <span style="display:inline-block; width: 22mm;">文具用品</span>
+        <span style="display:inline-block; width: 10mm; text-align: right;">一批</span>
+        <span style="display:inline-block; width: 16mm; text-align: right;">{{ sales_amt }}</span>
+    </div>
+
+    <div class="abs" style="left: 22mm; top: 116mm;">
+        ${{ sales_amt }}
+    </div>
+
+    <div class="abs" style="left: 22mm; top: 121mm;">
+        ${{ tax_amt }}
+    </div>
+
+    <div class="abs" style="left: 22mm; top: 126mm;">
+        ${{ total_amt }}
+    </div>
+
+    <script>
+        // 開啟網頁後自動觸發列印小視窗
+        window.onload = function() { window.print(); }
+    </script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4">
+    <h3 class="fw-bold text-danger"><i class="fa-solid fa-users-gear me-2"></i>員工職位與權限設定</h3>
+    <p class="text-muted small">最高管理員專用：定義職位權限並分配員工帳號。</p>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-5">
+        <div class="card rounded-card border-0 shadow-sm p-4 mb-4 bg-white">
+            <h5 class="fw-bold mb-4 text-secondary">🎭 創立新職位</h5>
+            <form action="/add_role" method="POST">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">職位名稱</label>
+                    <input type="text" name="role_name" class="form-control" placeholder="例：倉管、會計、業務" required>
+                </div>
+                
+                <div class="bg-light p-3 rounded-3 mb-3">
+                    <label class="small fw-bold mb-2 d-block text-muted">功能權限勾選</label>
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="p_products" id="p1" checked><label class="form-check-label small fw-bold" for="p1">商品管理</label></div>
+                            <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="p_vendors" id="p2" checked><label class="form-check-label small fw-bold" for="p2">廠商管理</label></div>
+                            <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="p_customers" id="p3" checked><label class="form-check-label small fw-bold" for="p3">客戶管理</label></div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="p_purchases" id="p4" checked><label class="form-check-label small fw-bold" for="p4">進貨與應付</label></div>
+                            <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="p_sales" id="p5" checked><label class="form-check-label small fw-bold" for="p5">銷貨與應收</label></div>
+                            <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="p_employees" id="p6"><label class="form-check-label small text-danger fw-bold" for="p6">員工與系統設定</label></div>
+                            <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="p_finance" id="p7"><label class="form-check-label small text-success fw-bold" for="p7">財務與現金流</label></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-end">
+                    <button type="submit" class="btn btn-dark px-5 rounded-pill shadow-sm">建立新職位</button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="card rounded-card border-0 shadow-sm p-4 mb-4 bg-white">
+            <h5 class="fw-bold mb-4 text-secondary">👤 新增員工帳號</h5>
+            <form action="/add_user" method="POST">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">員工姓名</label>
+                    <input type="text" name="emp_name" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">登入帳號 (Username)</label>
+                    <input type="text" name="username" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">登入密碼</label>
+                    <input type="password" name="password" class="form-control" required>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label small fw-bold">指派職位 (套用權限)</label>
+                    <select name="role_id" class="form-select bg-light" required>
+                        {% for r in roles %}
+                        <option value="{{ r.id }}">{{ r.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="text-end">
+                    <button type="submit" class="btn btn-dark px-5 rounded-pill shadow-sm">建立員工帳號</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        <div class="card rounded-card border-0 shadow-sm p-4 mb-4 bg-white">
+            <h5 class="fw-bold mb-3 text-secondary"><i class="fa-solid fa-list-check me-2"></i>已建立之職位權限總覽</h5>
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle small text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th>職位名稱</th>
+                            <th>商品</th>
+                            <th>廠商</th>
+                            <th>客戶</th>
+                            <th>進貨</th>
+                            <th>銷貨</th>
+                            <th>系統</th>
+                            <th class="text-success">財務</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in roles %}
+                        <tr>
+                            <td class="fw-bold text-start ps-3">{{ r.name }}</td>
+                            <td>{% if r.p_products %}<i class="fa-solid fa-check text-success"></i>{% else %}<i class="fa-solid fa-xmark text-danger"></i>{% endif %}</td>
+                            <td>{% if r.p_vendors %}<i class="fa-solid fa-check text-success"></i>{% else %}<i class="fa-solid fa-xmark text-danger"></i>{% endif %}</td>
+                            <td>{% if r.p_customers %}<i class="fa-solid fa-check text-success"></i>{% else %}<i class="fa-solid fa-xmark text-danger"></i>{% endif %}</td>
+                            <td>{% if r.p_purchases %}<i class="fa-solid fa-check text-success"></i>{% else %}<i class="fa-solid fa-xmark text-danger"></i>{% endif %}</td>
+                            <td>{% if r.p_sales %}<i class="fa-solid fa-check text-success"></i>{% else %}<i class="fa-solid fa-xmark text-danger"></i>{% endif %}</td>
+                            <td>{% if r.p_employees %}<i class="fa-solid fa-check text-success"></i>{% else %}<i class="fa-solid fa-xmark text-danger"></i>{% endif %}</td>
+                            <td>{% if r.p_finance %}<i class="fa-solid fa-check text-success"></i>{% else %}<i class="fa-solid fa-xmark text-danger"></i>{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card rounded-card border-0 shadow-sm p-4 bg-white">
+            <h5 class="fw-bold mb-3 text-secondary"><i class="fa-solid fa-users me-2"></i>系統使用者列表</h5>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle bg-white rounded-4 shadow-sm overflow-hidden">
+                    <thead class="table-light small">
+                        <tr>
+                            <th class="ps-4">帳號</th>
+                            <th>所屬職位</th>
+                            <th class="text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in users %}
+                        <tr>
+                            <td class="ps-4">
+                                <div class="fw-bold">{{ u.username }}</div>
+                                <small class="text-muted">{{ u.employee.name if u.employee else '系統預設' }}</small>
+                            </td>
+                            <td><span class="badge bg-light text-dark border">{{ u.role_ref.name }}</span></td>
+                            <td class="text-center">
+                                {% if u.username != 'admin' %}
+                                <a href="#" class="text-danger p-2"><i class="fa-solid fa-user-minus"></i></a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

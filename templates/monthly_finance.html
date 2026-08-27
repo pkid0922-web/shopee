@@ -1,0 +1,108 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4">
+    <h3 class="fw-bold" style="color: #20c997;"><i class="fa-solid fa-chart-line me-2"></i>每月財務總覽 (現金流量預估)</h3>
+    <p class="text-muted small">系統自動將該月帳的「應收帳款」、「應付帳款」與「固定支出」依照付款日 (1~31號) 排列。讓您一眼看出本月資金缺口與進帳高峰。</p>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card rounded-card border-0 shadow-sm h-100 p-3 bg-white">
+            <form action="/monthly_finance" method="GET" class="h-100 d-flex flex-column justify-content-center">
+                <label class="small fw-bold text-muted mb-2">查詢月帳</label>
+                <div class="input-group">
+                    <input type="number" name="year" class="form-control text-center fw-bold" value="{{ target_year }}">
+                    <span class="input-group-text">年</span>
+                    <select name="month" class="form-select text-center fw-bold">
+                        {% for i in range(1, 13) %}
+                        <option value="{{ i }}" {% if target_month == i %}selected{% endif %}>{{ i }} 月</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-dark w-100 mt-2 rounded-pill fw-bold shadow-sm">查詢</button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card rounded-card border-0 shadow-sm h-100 p-4" style="background: linear-gradient(135deg, #e0f8f1, #ffffff); border-left: 5px solid #20c997 !important;">
+            <div class="text-muted fw-bold small mb-1"><i class="fa-solid fa-arrow-down me-1 text-success"></i>總預估收入 (應收)</div>
+            <h3 class="fw-bold text-success m-0">$ {{ "{:,.0f}".format(total_in) }}</h3>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card rounded-card border-0 shadow-sm h-100 p-4" style="background: linear-gradient(135deg, #fdf2f2, #ffffff); border-left: 5px solid #dc3545 !important;">
+            <div class="text-muted fw-bold small mb-1"><i class="fa-solid fa-arrow-up me-1 text-danger"></i>總預估支出 (應付+固定)</div>
+            <h3 class="fw-bold text-danger m-0">$ {{ "{:,.0f}".format(total_out) }}</h3>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card rounded-card border-0 shadow-sm h-100 p-4" style="background: linear-gradient(135deg, #fff9e6, #ffffff); border-left: 5px solid #ffc107 !important;">
+            <div class="text-muted fw-bold small mb-1"><i class="fa-solid fa-scale-balanced me-1 text-warning"></i>本期淨現金流</div>
+            <h3 class="fw-bold {% if final_net >= 0 %}text-success{% else %}text-danger{% endif %} m-0">
+                $ {{ "{:,.0f}".format(final_net) }}
+            </h3>
+        </div>
+    </div>
+</div>
+
+<div class="card rounded-card border-0 shadow-sm bg-white overflow-hidden">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead class="small" style="background-color: #343a40; color: white;">
+                <tr>
+                    <th class="ps-4 py-3 text-center" width="80">日期</th>
+                    <th class="py-3" width="25%">預估收入明細</th>
+                    <th class="py-3" width="25%">預估支出明細</th>
+                    <th class="text-end py-3 text-success">總收入</th>
+                    <th class="text-end py-3 text-danger">總支出</th>
+                    <th class="text-end py-3 text-warning">單日淨額</th>
+                    <th class="text-end pe-4 py-3">月累計結餘</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in results %}
+                <tr style="{% if not r.has_data %}opacity: 0.4; background-color: #fcfcfc;{% else %}border-left: 4px solid #20c997;{% endif %}">
+                    <td class="ps-4 text-center fw-bold fs-5 text-dark">{{ r.day }}</td>
+                    
+                    <td class="py-2">
+                        {% for item in r.income_details %}
+                        <div class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-2 py-1 mb-1 text-start w-100 fw-normal">
+                            <div class="d-flex justify-content-between">
+                                <span>{{ item.name }}</span>
+                                <span class="fw-bold">$ {{ "{:,.0f}".format(item.amount) }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </td>
+                    
+                    <td class="py-2">
+                        {% for item in r.expense_details %}
+                        <div class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-2 py-1 mb-1 text-start w-100 fw-normal">
+                            <div class="d-flex justify-content-between">
+                                <span>{{ item.name }}</span>
+                                <span class="fw-bold">$ {{ "{:,.0f}".format(item.amount) }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </td>
+                    
+                    <td class="text-end fw-bold text-success fs-6">{% if r.income > 0 %}$ {{ "{:,.0f}".format(r.income) }}{% else %}-{% endif %}</td>
+                    <td class="text-end fw-bold text-danger fs-6">{% if r.expense > 0 %}$ {{ "{:,.0f}".format(r.expense) }}{% else %}-{% endif %}</td>
+                    
+                    <td class="text-end fw-bold {% if r.net > 0 %}text-success{% elif r.net < 0 %}text-danger{% else %}text-muted{% endif %} fs-6">
+                        {% if r.net != 0 %}$ {{ "{:,.0f}".format(r.net) }}{% else %}-{% endif %}
+                    </td>
+                    
+                    <td class="text-end pe-4 fw-bold fs-5 {% if r.cumulative < 0 %}text-danger{% else %}text-dark{% endif %}">
+                        $ {{ "{:,.0f}".format(r.cumulative) }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

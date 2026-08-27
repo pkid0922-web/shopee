@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>廠商對帳單 - {{ vendor.short_name }}</title>
+    <style>
+        /* 專為點陣印表機設計：純黑白、無灰階、細明體 */
+        body { font-family: "MingLiU", "細明體", "Courier New", monospace; color: #000; margin: 0; padding: 0; background: #fff; }
+        
+        /* 中一刀尺寸 */
+        .print-container { width: 100%; max-width: 21cm; margin: 0 auto; box-sizing: border-box; padding: 0.5cm; }
+        
+        .header { text-align: center; margin-bottom: 10px; border-bottom: 2px dashed #000; padding-bottom: 10px; }
+        .header h1 { margin: 0 0 5px 0; font-size: 20pt; letter-spacing: 5px; }
+        .header p { margin: 0; font-size: 14pt; font-weight: bold; }
+        
+        .info-table { width: 100%; font-size: 12pt; margin-bottom: 15px; }
+        .info-table td { padding: 4px 0; }
+        
+        .item-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11pt; border-top: 2px solid #000; border-bottom: 2px solid #000; }
+        .item-table th { border-bottom: 1px dashed #000; padding: 5px; text-align: center; }
+        .item-table td { padding: 5px; text-align: center; border-bottom: 1px dotted #ccc; }
+        .text-right { text-align: right !important; }
+        
+        .summary-wrapper { display: flex; justify-content: space-between; border-top: 2px dashed #000; padding-top: 15px; font-size: 12pt; }
+        
+        .formula-box { border: 1px solid #000; padding: 10px; width: 50%; border-radius: 4px; line-height: 1.6; }
+        
+        .total-box { width: 45%; }
+        .summary-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .total-due { font-size: 16pt; font-weight: bold; border-top: 2px solid #000; padding-top: 8px; margin-top: 8px; }
+        
+        @media print {
+            @page { size: 21cm 14cm; margin: 0; }
+            .no-print { display: none; }
+            .print-container { padding: 0.5cm; max-width: 100%; }
+        }
+        
+        .btn-print { margin: 15px; padding: 10px 20px; font-size: 14pt; cursor: pointer; background: #000; color: #fff; border: none; font-weight: bold; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="text-align: center;">
+        <button class="btn-print" onclick="window.print()">🖨️ 確認列印 (點陣中一刀)</button>
+        <button class="btn-print" style="background: #666;" onclick="window.location.href='/vendor_statement_page'">返回</button>
+    </div>
+    
+    <div class="print-container">
+        <div class="header">
+            <h1>{{ company_name }}</h1>
+            <p>廠 商 進 貨 帳 款 核 對 單</p>
+        </div>
+        
+        <table class="info-table">
+            <tr>
+                <td width="60%"><strong>廠商編號：</strong>{{ vendor.vendor_no }}</td>
+                <td width="40%"><strong>結帳區間：</strong>{{ year }} 年 {{ month }} 月</td>
+            </tr>
+            <tr>
+                <td><strong>廠商名稱：</strong>{{ vendor.full_name }}</td>
+                <td id="printDate"><strong>列印日期：</strong></td>
+            </tr>
+        </table>
+        
+        <table class="item-table">
+            <thead>
+                <tr>
+                    <th width="15%">單據屬性</th>
+                    <th width="20%">日期</th>
+                    <th width="35%">單據號碼 / 商品名稱</th>
+                    <th width="30%" class="text-right">增減金額</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for po in pos %}
+                <tr>
+                    <td>[進貨單]</td>
+                    <td>{{ po.date.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ po.order_no }}</td>
+                    <td class="text-right">$ {{ "{:,.0f}".format(po.total_amount) }}</td>
+                </tr>
+                {% endfor %}
+                
+                {% for r in current_returns %}
+                <tr>
+                    <td>[退貨扣抵]</td>
+                    <td>{{ r.order.date.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ r.order.order_no }} - {{ r.product_ref.name }}</td>
+                    <td class="text-right" style="color: #666;">- $ {{ "{:,.0f}".format(r.qty * r.cost) }}</td>
+                </tr>
+                {% endfor %}
+                
+                {% if not pos and not current_returns %}
+                <tr><td colspan="4">本期無進退貨紀錄</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+        
+        <div class="summary-wrapper">
+            <div class="formula-box">
+                <div><strong>【本期帳款總結公式】</strong></div>
+                <div>前期餘額：$ {{ "{:,.0f}".format(previous_balance) }}</div>
+                <div>本期進貨：+ $ {{ "{:,.0f}".format(current_po_total) }}</div>
+                <div>本期退貨：- $ {{ "{:,.0f}".format(current_return_total) }}</div>
+                <div>本期已付：- $ {{ "{:,.0f}".format(current_payment_total) }}</div>
+            </div>
+            
+            <div class="total-box">
+                <div class="summary-row">
+                    <span>前期結欠餘額：</span>
+                    <span>$ {{ "{:,.0f}".format(previous_balance) }}</span>
+                </div>
+                <div class="summary-row">
+                    <span>本期新增貨款 (進-退)：</span>
+                    <span>$ {{ "{:,.0f}".format(current_po_total - current_return_total) }}</span>
+                </div>
+                <div class="summary-row">
+                    <span>本期已匯款/支付：</span>
+                    <span>- $ {{ "{:,.0f}".format(current_payment_total) }}</span>
+                </div>
+                
+                <div class="summary-row total-due">
+                    <span>本期總結欠款：</span>
+                    <span>$ {{ "{:,.0f}".format(total_due) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const today = new Date();
+        document.getElementById('printDate').innerHTML = '<strong>列印日期：</strong>' + today.getFullYear() + '/' + (today.getMonth()+1) + '/' + today.getDate();
+    </script>
+</body>
+</html>

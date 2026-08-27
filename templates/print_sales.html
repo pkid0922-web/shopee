@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>銷貨單列印 - {{ order.order_no }}</title>
+    <style>
+        /* 專為點陣印表機設計：純黑白、無灰階、細明體 */
+        body { font-family: "MingLiU", "細明體", "Courier New", monospace; color: #000; margin: 0; padding: 0; background: #fff; }
+        .print-container { width: 100%; max-width: 20cm; margin: 0 auto; box-sizing: border-box; }
+        
+        /* 表頭 */
+        .header { text-align: center; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 5px; }
+        .header h1 { margin: 0; font-size: 22pt; letter-spacing: 5px; }
+        .header p { margin: 5px 0 0 0; font-size: 12pt; }
+        
+        /* 客戶與單據資訊 */
+        .info-table { width: 100%; border: none; font-size: 12pt; margin-bottom: 10px; }
+        .info-table td { padding: 3px 0; vertical-align: top; }
+        
+        /* 商品明細表格 */
+        .item-table { width: 100%; border-collapse: collapse; font-size: 11pt; margin-bottom: 10px; }
+        .item-table th, .item-table td { border: 1px solid #000; padding: 5px 4px; }
+        .item-table th { text-align: center; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        
+        /* 結尾簽名區 */
+        .footer { margin-top: 15px; font-size: 12pt; }
+        .footer-total { text-align: right; font-size: 14pt; font-weight: bold; margin-bottom: 15px; }
+        .signature-row { display: flex; justify-content: space-between; }
+        
+        /* 列印專用 CSS - 中一刀設定 (8.5" x 5.5" 或 21.4cm x 14cm) */
+        @media print {
+            @page { size: 21.4cm 14cm; margin: 0.5cm 1cm; }
+            .no-print { display: none; }
+            body { font-size: 11pt; }
+        }
+        
+        .btn-print { margin: 20px; padding: 10px 20px; font-size: 14pt; cursor: pointer; background: #000; color: #fff; border: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="text-align: center;">
+        <button class="btn-print" onclick="window.print()">🖨️ 確認列印 (中一刀點陣格式)</button>
+    </div>
+    
+    <div class="print-container">
+        <div class="header">
+            <h1>衣橙企業 - 銷貨單</h1>
+        </div>
+        
+        <table class="info-table">
+            <tr>
+                <td width="15%"><strong>客戶名稱：</strong></td>
+                <td width="35%">{{ order.customer_ref.full_name }}</td>
+                <td width="15%"><strong>單據號碼：</strong></td>
+                <td width="35%">{{ order.order_no }}</td>
+            </tr>
+            <tr>
+                <td><strong>統一編號：</strong></td>
+                <td>{{ order.customer_ref.tax_id or '---' }}</td>
+                <td><strong>出貨日期：</strong></td>
+                <td>{{ order.date.strftime('%Y-%m-%d') }}</td>
+            </tr>
+            <tr>
+                <td><strong>聯絡電話：</strong></td>
+                <td>{{ order.customer_ref.phone or order.customer_ref.mobile or '---' }}</td>
+                <td><strong>歸屬月帳：</strong></td>
+                <td>{{ order.billing_year }} 年 {{ order.billing_month }} 月</td>
+            </tr>
+            <tr>
+                <td><strong>送貨地址：</strong></td>
+                <td colspan="3">{{ order.customer_ref.shipping_address or '---' }}</td>
+            </tr>
+        </table>
+        
+        <table class="item-table">
+            <thead>
+                <tr>
+                    <th width="15%">條碼 / 編碼</th>
+                    <th width="35%">商品名稱</th>
+                    <th width="10%">數量</th>
+                    <th width="15%">單價</th>
+                    <th width="15%">小計</th>
+                    <th width="10%">備註</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in order.items %}
+                <tr>
+                    <td class="text-center">{{ item.product_ref.barcode or item.product_ref.code1 or '' }}</td>
+                    <td>{{ item.product_ref.name }}</td>
+                    <td class="text-center">{{ item.qty }}</td>
+                    <td class="text-right">{{ item.price|round|int }}</td>
+                    <td class="text-right">{{ (item.qty * item.price)|round|int }}</td>
+                    <td class="text-center">{{ item.remark or '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div class="footer">
+            <div class="footer-total">
+                總計金額：NT$ {{ "{:,.0f}".format(order.total_amount) }}
+            </div>
+            <div class="signature-row">
+                <div>客戶簽收：____________________</div>
+                <div>送貨人員：____________________</div>
+                <div>製單人員：____________________</div>
+            </div>
+        </div>
+    </div>
+</body>
+<script>window.onload = function() { window.print(); }</script>
+</html>

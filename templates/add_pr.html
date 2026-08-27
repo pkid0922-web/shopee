@@ -1,0 +1,153 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4">
+    <h3 class="fw-bold text-success"><i class="fa-solid fa-file-signature me-2"></i>開立採購單 (傳真叫貨專用)</h3>
+    <p class="text-muted small">送出後將自動生成 A4 傳真格式，不影響實際庫存。</p>
+</div>
+
+<style>
+    .ven-search-results { position: absolute; z-index: 1050; width: 100%; top: 100%; left: 0; background: white; border: 1px solid #e0e0e0; border-radius: 0 0 10px 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); display: none; max-height: 250px; overflow-y: auto; }
+    .ven-search-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f8f9fa; transition: 0.2s; }
+    .ven-search-item:last-child { border-bottom: none; }
+    .ven-search-item:hover { background: #d1e7dd; }
+    .ven-search-item.active { background: #198754; color: white; }
+</style>
+
+<div class="card rounded-card border-0 shadow-sm p-4 bg-white">
+    <form action="/save_pr" method="POST" id="prForm">
+        
+        <div class="row g-4 mb-4">
+            <div class="col-md-6 position-relative">
+                <label class="small fw-bold text-success">1. 叫貨廠商 (輸入編號或簡稱)</label>
+                <input type="text" id="venSearch" class="form-control form-control-lg border-success shadow-sm" placeholder="請輸入廠商搜尋..." autocomplete="off" required>
+                <input type="hidden" name="vendor_id" id="hiddenVenId">
+                <div id="venDropdown" class="ven-search-results text-dark"></div>
+            </div>
+            
+            <div class="col-md-6">
+                <label class="small fw-bold text-danger">2. 歸屬月帳 (數字)</label>
+                <input type="number" name="billing_month" class="form-control form-control-lg border-danger shadow-sm" value="{{ month }}" required>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-end mb-3 mt-4">
+            <h5 class="fw-bold text-secondary m-0"><i class="fa-solid fa-list me-2"></i>廠商供應商品清單</h5>
+            <div style="width: 300px;">
+                <input type="text" id="prodFilter" class="form-control border-secondary shadow-sm" placeholder="🔍 快速搜尋清單內商品..." oninput="filterProducts()" autocomplete="off">
+            </div>
+        </div>
+        
+        <div class="table-responsive" style="max-height: 60vh; overflow-y: auto;">
+            <table class="table table-hover align-middle bg-white rounded-4 shadow-sm border">
+                <thead class="table-light small text-secondary sticky-top" style="z-index: 10;">
+                    <tr>
+                        <th class="ps-4 py-3" width="20%">國際條碼</th>
+                        <th class="py-3" width="45%">產品名稱</th>
+                        <th class="text-center py-3" width="10%">單位</th>
+                        <th class="py-3 px-4" width="25%">叫貨數量</th>
+                    </tr>
+                </thead>
+                <tbody id="vendorProductList">
+                    <tr id="emptyMsg"><td colspan="4" class="text-center py-5 text-muted fw-bold">請先於上方選擇廠商 👆</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="text-end mt-4">
+            <button type="submit" class="btn btn-success px-5 py-3 rounded-pill fw-bold shadow-sm fs-5">產生 A4 採購傳真單</button>
+        </div>
+    </form>
+</div>
+
+<script>
+const venData = [
+    {% for v in vendors %}
+    { id: "{{ v.id }}", no: "{{ v.vendor_no }}", name: "{{ v.short_name }}" },
+    {% endfor %}
+];
+
+const venSearch = document.getElementById('venSearch'), venDropdown = document.getElementById('venDropdown'), hiddenVenId = document.getElementById('hiddenVenId');
+let filteredVens = [], venActiveIdx = -1;
+
+venSearch.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim();
+    hiddenVenId.value = ''; 
+    if (!q) { filteredVens = venData; } 
+    else { filteredVens = venData.filter(v => v.no.toLowerCase().includes(q) || v.name.toLowerCase().includes(q)); }
+    showVenDropdown();
+});
+
+venSearch.addEventListener('focus', function() { venSearch.dispatchEvent(new Event('input')); });
+
+function showVenDropdown() {
+    if (filteredVens.length === 0) { venDropdown.innerHTML = '<div class="p-3 text-muted small text-center">找不到相符的廠商</div>'; } 
+    else { venDropdown.innerHTML = filteredVens.map((v, i) => `<div class="ven-search-item" onclick="selectVen(${i})"><span class="fw-bold">${v.no}</span> - <span>${v.name}</span></div>`).join(''); }
+    venDropdown.style.display = 'block'; venActiveIdx = -1;
+}
+
+function selectVen(idx) {
+    const v = filteredVens[idx];
+    venSearch.value = `${v.no} - ${v.name}`; hiddenVenId.value = v.id; venDropdown.style.display = 'none';
+    
+    // 清空商品搜尋框並呼叫 API 抓取該廠商的商品
+    document.getElementById('prodFilter').value = '';
+    loadVendorProducts(v.id);
+}
+
+venSearch.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); venActiveIdx = Math.min(venActiveIdx + 1, filteredVens.length - 1); updateVenActive(); } 
+    else if (e.key === 'ArrowUp') { e.preventDefault(); venActiveIdx = Math.max(venActiveIdx - 1, 0); updateVenActive(); } 
+    else if (e.key === 'Enter') { e.preventDefault(); if (venActiveIdx > -1 && filteredVens.length > 0) selectVen(venActiveIdx); else if (filteredVens.length === 1) selectVen(0); } 
+    else if (e.key === 'Escape') { venDropdown.style.display = 'none'; }
+});
+
+function updateVenActive() { document.querySelectorAll('.ven-search-item').forEach((el, i) => { el.classList.toggle('active', i === venActiveIdx); if (i === venActiveIdx) el.scrollIntoView({ block: 'nearest' }); }); }
+document.addEventListener('click', e => { if (!venSearch.contains(e.target) && !venDropdown.contains(e.target)) venDropdown.style.display = 'none'; });
+
+document.getElementById('prForm').addEventListener('submit', function(e) {
+    if (!hiddenVenId.value) { e.preventDefault(); alert('請先正確選擇叫貨廠商！'); venSearch.focus(); }
+});
+
+// AJAX 載入商品
+function loadVendorProducts(vid) {
+    document.getElementById('vendorProductList').innerHTML = '<tr><td colspan="4" class="text-center py-5 text-primary fw-bold"><i class="fa-solid fa-spinner fa-spin me-2"></i>正在載入廠商商品...</td></tr>';
+    
+    fetch(`/api/get_vendor_products/${vid}`)
+        .then(response => response.json())
+        .then(data => {
+            if(data.length === 0) {
+                document.getElementById('vendorProductList').innerHTML = '<tr><td colspan="4" class="text-center py-5 text-danger fw-bold"><i class="fa-solid fa-triangle-exclamation me-2"></i>此廠商目前沒有綁定任何商品！請先至「商品管理」修改並綁定供應商。</td></tr>';
+                return;
+            }
+            
+            // 加上 prod-row 的 class，方便前端進行過濾
+            const html = data.map((p, index) => `
+                <tr class="prod-row">
+                    <td class="ps-4 font-monospace"><input type="hidden" name="product_id[]" value="${p.id}">${p.barcode}</td>
+                    <td class="fw-bold fs-6">${p.name}</td>
+                    <td class="text-center">${p.unit}</td>
+                    <td class="px-4"><input type="number" name="qty[]" class="form-control border-success text-center fw-bold text-success fs-5 bg-success-subtle" value="0" min="0" tabindex="${index + 1}"></td>
+                </tr>
+            `).join('');
+            
+            document.getElementById('vendorProductList').innerHTML = html;
+        });
+}
+
+// === 新增：商品快速過濾邏輯 ===
+function filterProducts() {
+    const term = document.getElementById('prodFilter').value.toLowerCase().trim();
+    const rows = document.querySelectorAll('#vendorProductList tr.prod-row');
+    
+    rows.forEach(row => {
+        // 檢查該行內的所有文字是否包含搜尋關鍵字
+        const text = row.innerText.toLowerCase();
+        if (text.includes(term)) {
+            row.style.display = ''; // 顯示
+        } else {
+            row.style.display = 'none'; // 隱藏
+        }
+    });
+}
+</script>
+{% endblock %}

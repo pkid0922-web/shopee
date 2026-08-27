@@ -1,0 +1,103 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+    /* 仿照日系 SaaS 的卡片與按鈕風格 */
+    body { background-color: #eef1f5; }
+    .jp-card { background: #ffffff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); padding: 45px 50px; max-width: 600px; margin: 40px auto; border: 1px solid #e1e5eb; }
+    
+    /* 客戶專屬：日系磚紅/朱紅色調，區分進銷貨 */
+    .jp-icon-box { background: #c75b5b; color: white; width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.4rem; margin-right: 15px; flex-shrink: 0; box-shadow: 0 4px 10px rgba(199, 91, 91, 0.3); }
+    .jp-title { display: flex; align-items: center; font-weight: 800; color: #1a2a3a; font-size: 1.5rem; margin-bottom: 25px; letter-spacing: 0.5px; }
+    .jp-text { color: #3a4a5a; font-size: 1.05rem; line-height: 1.7; margin-bottom: 35px; font-weight: 500; }
+    
+    /* 完美復刻空心圓角箭頭按鈕 */
+    .jp-btn { display: inline-flex; align-items: center; justify-content: start; border: 1.5px solid #c75b5b; color: #3a4a5a; background: transparent; border-radius: 50px; padding: 12px 30px; font-weight: bold; transition: all 0.2s ease; font-size: 1.1rem; width: auto; min-width: 260px; margin-bottom: 12px; }
+    .jp-btn:hover { background: #fdf5f5; color: #1a2a3a; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-color: #a34747; }
+    .jp-btn i { margin-right: 15px; font-size: 1.1rem; color: #c75b5b; }
+
+    /* 下拉選單 CSS (保留以維持鍵盤極速搜尋功能) */
+    .cust-search-results { position: absolute; z-index: 1050; width: 100%; top: 100%; left: 0; background: white; border: 1px solid #e0e0e0; border-radius: 0 0 10px 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); display: none; max-height: 250px; overflow-y: auto; }
+    .cust-search-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f8f9fa; transition: 0.2s; }
+    .cust-search-item:last-child { border-bottom: none; }
+    .cust-search-item:hover { background: #fdfaf5; }
+    .cust-search-item.active { background: #c75b5b; color: white; }
+</style>
+
+<div class="jp-card">
+    <div class="jp-title">
+        <div class="jp-icon-box"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+        客戶別 對帳單列印
+    </div>
+    <div class="jp-text">
+        請選擇欲結算的客戶與對帳期間。<br>
+        系統將自動結算前期欠款、本期出貨與退貨明細，並產生可用於請款的 A4 對帳單。
+    </div>
+
+    <form action="/print_statement" method="POST" id="statementForm">
+        <div class="mb-4 position-relative">
+            <label class="small fw-bold mb-2" style="color: #c75b5b;">選擇請款客戶</label>
+            <input type="text" id="custSearch" class="form-control form-control-lg shadow-none" style="border: 1px solid #ced4da; background: #f8f9fa;" placeholder="輸入客戶編號或簡稱..." autocomplete="off" required>
+            <input type="hidden" name="customer_id" id="hiddenCustId">
+            <div id="custDropdown" class="cust-search-results text-dark"></div>
+        </div>
+
+        <div class="row g-3 mb-5">
+            <div class="col-6">
+                <label class="small fw-bold mb-2" style="color: #c75b5b;">歸屬年份 (西元)</label>
+                <input type="number" name="year" class="form-control form-control-lg shadow-none text-center fw-bold" style="border: 1px solid #ced4da; background: #f8f9fa;" value="{{ current_year }}" required>
+            </div>
+            <div class="col-6">
+                <label class="small fw-bold mb-2" style="color: #c75b5b;">歸屬月份</label>
+                <select name="month" class="form-select form-select-lg shadow-none text-center fw-bold" style="border: 1px solid #ced4da; background: #f8f9fa;" required>
+                    {% for i in range(1, 13) %}
+                    <option value="{{ i }}" {% if current_month == i %}selected{% endif %}>{{ i }} 月份</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div>
+            <button type="submit" class="jp-btn"><i class="fa-solid fa-arrow-right"></i>產生對帳單</button>
+        </div>
+    </form>
+</div>
+
+<script>
+// 極速鍵盤搜尋邏輯
+const custData = [
+    {% for c in customers %}
+    { id: "{{ c.id }}", no: "{{ c.cust_no }}", name: "{{ c.short_name }}" },
+    {% endfor %}
+];
+const custSearch = document.getElementById('custSearch'), custDropdown = document.getElementById('custDropdown'), hiddenCustId = document.getElementById('hiddenCustId');
+let filteredCusts = [], custActiveIdx = -1;
+
+custSearch.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim(); hiddenCustId.value = ''; 
+    if (!q) { filteredCusts = custData; } 
+    else { filteredCusts = custData.filter(c => c.no.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)); }
+    showCustDropdown();
+});
+
+function showCustDropdown() {
+    if (filteredCusts.length === 0) { custDropdown.innerHTML = '<div class="p-3 text-muted small text-center">找不到相符的客戶</div>'; } 
+    else { custDropdown.innerHTML = filteredCusts.map((c, i) => `<div class="cust-search-item" onclick="selectCust(${i})" id="cust-row-${i}"><span class="fw-bold">${c.no}</span> - <span>${c.name}</span></div>`).join(''); }
+    custDropdown.style.display = 'block'; custActiveIdx = -1;
+}
+
+function selectCust(idx) {
+    const c = filteredCusts[idx]; custSearch.value = `${c.no} - ${c.name}`; hiddenCustId.value = c.id; custDropdown.style.display = 'none';
+}
+
+custSearch.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); custActiveIdx = Math.min(custActiveIdx + 1, filteredCusts.length - 1); updateCustActive(); } 
+    else if (e.key === 'ArrowUp') { e.preventDefault(); custActiveIdx = Math.max(custActiveIdx - 1, 0); updateCustActive(); } 
+    else if (e.key === 'Enter') { e.preventDefault(); if (custActiveIdx > -1 && filteredCusts.length > 0) selectCust(custActiveIdx); else if (filteredCusts.length === 1) selectCust(0); } 
+    else if (e.key === 'Escape') { custDropdown.style.display = 'none'; }
+});
+
+function updateCustActive() { document.querySelectorAll('.cust-search-item').forEach((el, i) => { el.classList.toggle('active', i === custActiveIdx); if (i === custActiveIdx) el.scrollIntoView({ block: 'nearest' }); }); }
+document.addEventListener('click', e => { if (!custSearch.contains(e.target) && !custDropdown.contains(e.target)) custDropdown.style.display = 'none'; });
+document.getElementById('statementForm').addEventListener('submit', function(e) { if (!hiddenCustId.value) { e.preventDefault(); alert('請從下拉選單中正確選擇客戶！'); custSearch.focus(); } });
+</script>
+{% endblock %}

@@ -1,0 +1,282 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<style>
+    /* =======================================================
+       💡 PDA 絕對防護罩：無視外層 layout 規則，強迫一螢幕顯示！
+       ======================================================= */
+    
+    /* 1. 消除過大的左右留白，把螢幕空間還給表格 */
+    .container { padding-left: 5px !important; padding-right: 5px !important; }
+
+    /* 2. 黑科技：鎖死表格比例！不管字多長，絕對不准撐出螢幕產生左右滾動條 */
+    table { table-layout: fixed; width: 100%; }
+    
+    /* 3. 單元格微調：文字不換行、超過變刪節號、縮小多餘的 padding 防壅擠 */
+    #itemList td, #itemList th { 
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        padding: 8px 4px !important; 
+        vertical-align: middle;
+    }
+
+    /* 4. 讓輸入框彈性縮放，min-width: 0 確保它不會撐破表格 */
+    .grid-input { border: 2px solid transparent; background-color: transparent; transition: 0.2s; }
+    .grid-input:focus { border: 2px solid #0d6efd; background-color: #fff; outline: none; box-shadow: 0 0 8px rgba(13,110,253,0.3); }
+    .grid-input, .grid-readonly { 
+        width: 100%; 
+        min-width: 0 !important; 
+        font-size: 1.1rem !important; 
+        padding: 10px 5px !important; 
+        border-radius: 8px;
+    }
+    .grid-readonly { background-color: #f8f9fa !important; color: #6c757d; border: 1px solid #dee2e6; }
+
+    /* 搜尋選單美化 */
+    .cust-search-results { position: absolute; z-index: 1050; width: 100%; top: 100%; left: 0; background: white; border: 1px solid #0d6efd; border-radius: 0 0 10px 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); display: none; max-height: 250px; overflow-y: auto; }
+    .cust-search-item { padding: 15px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 1.2rem; }
+    .cust-search-item.active { background: #0d6efd; color: white; }
+    
+    #hudName { white-space: nowrap; overflow: hidden; width: 100%; transition: transform 0.1s ease-in-out; }
+    .table-hover tbody tr#hudRow:hover td { background-color: transparent !important; }
+</style>
+
+<div class="mb-3 mt-2 px-2">
+    <h4 class="fw-bold text-primary mb-1"><i class="fa-solid fa-barcode me-2"></i>PA760 揀貨快打</h4>
+    <p class="text-muted small mb-0">大字視窗永遠跟隨，無須左右滑動螢幕。</p>
+</div>
+
+<form id="pickingForm">
+    <div class="card rounded-card border-0 shadow-sm p-3 mb-3 bg-white border-start border-5 border-primary mx-1">
+        <label class="fw-bold text-primary fs-6 mb-2">1. 揀貨客戶 (搜尋編號/簡稱)</label>
+        <input type="text" id="custSearch" class="form-control form-control-lg border-primary shadow-sm fs-5" placeholder="點此搜尋客戶..." autocomplete="off" required>
+        <input type="hidden" name="customer_id" id="hiddenCustId">
+        <div id="custDropdown" class="cust-search-results text-dark"></div>
+    </div>
+
+    <div class="card rounded-card border-0 shadow-sm bg-white overflow-hidden mb-3 mx-1">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-primary small">
+                <tr>
+                    <th width="35%" class="ps-2 py-2">2. 國際條碼</th>
+                    <th width="35%" class="py-2">商品名稱</th>
+                    <th width="15%" class="py-2 text-center">3.數量</th>
+                    <th width="15%" class="py-2 text-center">刪除</th>
+                </tr>
+            </thead>
+            <tbody id="itemList">
+                
+                <tr id="hudRow">
+                    <td colspan="4" class="p-0 border-0 bg-transparent">
+                        <div class="card border-0 shadow-sm my-2 mx-1" style="background-color: #f0f8ff; border: 3px dashed #0d6efd !important; border-radius: 1rem;">
+                            <div class="card-body text-center py-2">
+                                <div class="text-secondary fw-bold mb-1" style="font-size: 0.85rem;"><i class="fa-solid fa-arrow-up me-1"></i>上一筆掃描確認</div>
+                                <div id="hudName" class="text-primary mx-auto" style="font-weight: 900; line-height: 1.2; min-height: 50px; letter-spacing: 1px;">
+                                    等待掃描...
+                                </div>
+                                <div id="hudBarcode" class="text-muted small fw-bold mt-1"></div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="text-end mt-3 mb-5 pb-5 px-2">
+        <button type="submit" class="btn btn-primary w-100 py-3 rounded-pill fw-bold shadow fs-4"><i class="fa-solid fa-check-double me-2"></i>確認送出揀貨單</button>
+    </div>
+</form>
+
+<script>
+// === 客戶搜尋邏輯 ===
+const custData = [ {% for c in customers %} { id: "{{ c.id }}", no: "{{ c.cust_no }}", name: "{{ c.short_name }}" }, {% endfor %} ];
+const custSearch = document.getElementById('custSearch'), custDropdown = document.getElementById('custDropdown'), hiddenCustId = document.getElementById('hiddenCustId');
+let filteredCusts = [], custActiveIdx = -1;
+
+custSearch.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim(); hiddenCustId.value = ''; 
+    if (!q) { filteredCusts = custData; } else { filteredCusts = custData.filter(c => c.no.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)); }
+    showCustDropdown();
+});
+function showCustDropdown() {
+    if (filteredCusts.length === 0) { custDropdown.innerHTML = '<div class="p-3 text-muted fs-6 text-center">找不到客戶</div>'; } 
+    else { custDropdown.innerHTML = filteredCusts.map((c, i) => `<div class="cust-search-item" onclick="selectCust(${i})" id="cust-row-${i}"><span class="fw-bold">${c.no}</span> - <span>${c.name}</span></div>`).join(''); }
+    custDropdown.style.display = 'block'; custActiveIdx = -1;
+}
+function selectCust(idx) {
+    const c = filteredCusts[idx]; custSearch.value = `${c.no} - ${c.name}`; hiddenCustId.value = c.id;
+    custDropdown.style.display = 'none'; 
+    const firstBarcode = document.querySelector('.barcode-input');
+    if(firstBarcode) setTimeout(() => firstBarcode.focus(), 100);
+}
+custSearch.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); custActiveIdx = Math.min(custActiveIdx + 1, filteredCusts.length - 1); updateCustActive(); } 
+    else if (e.key === 'ArrowUp') { e.preventDefault(); custActiveIdx = Math.max(custActiveIdx - 1, 0); updateCustActive(); } 
+    else if (e.key === 'Enter') { e.preventDefault(); if (custActiveIdx > -1 && filteredCusts.length > 0) selectCust(custActiveIdx); else if (filteredCusts.length === 1) selectCust(0); } 
+    else if (e.key === 'Escape') { custDropdown.style.display = 'none'; }
+});
+function updateCustActive() { document.querySelectorAll('.cust-search-item').forEach((el, i) => { el.classList.toggle('active', i === custActiveIdx); if (i === custActiveIdx) el.scrollIntoView({ block: 'nearest' }); }); }
+document.addEventListener('click', e => { if (!custSearch.contains(e.target) && !custDropdown.contains(e.target)) custDropdown.style.display = 'none'; });
+
+// === 連續網格快打邏輯 ===
+const itemList = document.getElementById('itemList');
+const hudRow = document.getElementById('hudRow');
+const hudName = document.getElementById('hudName');
+const hudBarcode = document.getElementById('hudBarcode');
+
+// PDA 螢幕較小，預設最大字體調成 2.5rem
+hudName.style.fontSize = '2.5rem';
+
+function createRow() {
+    const tr = document.createElement('tr');
+    tr.className = 'product-row'; 
+    tr.innerHTML = `
+        <td class="ps-1 position-relative">
+            <input type="text" class="form-control fw-bold grid-input barcode-input text-primary" placeholder="掃碼" autocomplete="off">
+            <input type="hidden" name="product_id[]" class="pid-input">
+        </td>
+        <td><input type="text" class="form-control grid-readonly name-input" readonly tabindex="-1" placeholder="品名"></td>
+        <td><input type="number" name="qty[]" class="form-control text-center fw-bold grid-input qty-input" placeholder="1"></td>
+        <td class="text-center"><button type="button" class="btn btn-link text-danger p-0 del-btn"><i class="fa-solid fa-xmark fs-4"></i></button></td>
+    `;
+    
+    itemList.appendChild(tr);
+    itemList.insertBefore(hudRow, tr);
+    return tr;
+}
+
+window.onload = () => { createRow(); };
+
+itemList.addEventListener('keydown', async function(e) {
+    const tr = e.target.closest('.product-row');
+    if (!tr) return;
+
+    if (e.key === 'F4') {
+        e.preventDefault();
+        tr.remove();
+        if (itemList.lastElementChild.id === 'hudRow') {
+            createRow().querySelector('.barcode-input').focus();
+        } else {
+            itemList.lastElementChild.querySelector('.barcode-input').focus();
+        }
+        return;
+    }
+
+    if (e.key === 'Enter') {
+        e.preventDefault();
+
+        if (e.target.classList.contains('barcode-input')) {
+            const v = e.target.value.trim();
+            if (!v) return;
+            if (!hiddenCustId.value) { alert('請先選擇「揀貨客戶」！'); custSearch.focus(); return; }
+            searchProd(v, tr);
+        }
+        else if (e.target.classList.contains('qty-input')) {
+            if (tr.querySelector('.pid-input').value) {
+                if (tr === itemList.lastElementChild) {
+                    const newTr = createRow();
+                    newTr.querySelector('.barcode-input').focus();
+                    setTimeout(() => {
+                        hudRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
+                } else {
+                    const nextTr = tr.nextElementSibling;
+                    if(nextTr.id === 'hudRow') nextTr.nextElementSibling.querySelector('.barcode-input').focus();
+                    else nextTr.querySelector('.barcode-input').focus();
+                }
+            }
+        }
+    }
+});
+
+itemList.addEventListener('click', function(e) {
+    if (e.target.closest('.del-btn')) {
+        e.target.closest('tr').remove();
+        if (itemList.lastElementChild.id === 'hudRow') {
+            createRow().querySelector('.barcode-input').focus();
+        }
+    }
+});
+
+function searchProd(v, tr){ 
+    fetch(`/api/search_products?q=${v}`).then(r=>r.json()).then(d=>{ 
+        if(d.length >= 1) { populateProd(d[0], tr); } 
+        else { 
+            tr.querySelector('.barcode-input').value=''; 
+            hudName.innerText = "❌ 找不到商品";
+            hudName.style.color = "#dc3545"; 
+            hudName.style.fontSize = '2.2rem';
+            hudBarcode.innerText = "條碼: " + v;
+        }
+    });
+}
+
+function populateProd(p, tr) {
+    tr.querySelector('.barcode-input').value = p.barcode || p.code1;
+    tr.querySelector('.name-input').value = p.name;
+    tr.querySelector('.pid-input').value = p.id;
+    
+    const qtyInput = tr.querySelector('.qty-input');
+    if (!qtyInput.value) qtyInput.value = 1;
+
+    hudName.innerText = p.name;
+    hudName.style.color = "#0d6efd"; 
+    hudBarcode.innerText = "條碼: " + (p.barcode || p.code1 || '無');
+    
+    hudName.style.fontSize = '2.5rem';
+    
+    setTimeout(() => {
+        let currentSize = 2.5;
+        while (hudName.scrollWidth > hudName.clientWidth && currentSize > 1.2) {
+            currentSize -= 0.1;
+            hudName.style.fontSize = currentSize + 'rem';
+        }
+        hudName.style.transform = 'scale(1.05)';
+        setTimeout(() => { hudName.style.transform = 'scale(1)'; }, 100);
+    }, 10);
+
+    qtyInput.focus(); 
+    qtyInput.select();
+    
+    setTimeout(() => {
+        hudRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+}
+
+document.getElementById('pickingForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const cid = hiddenCustId.value;
+    if(!cid) { alert('請選擇客戶！'); return; }
+
+    const items = [];
+    itemList.querySelectorAll('.product-row').forEach(tr => {
+        const pid = tr.querySelector('.pid-input').value;
+        const qty = tr.querySelector('.qty-input').value;
+        if (pid && qty > 0) {
+            items.push({ id: pid, qty: qty });
+        }
+    });
+
+    if(items.length === 0) { alert('您還沒有刷入任何商品！'); return; }
+
+    fetch('/save_picking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_id: cid, items: items })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.success) {
+            alert('✅ 揀貨單開立成功！');
+            window.location.href = '/'; 
+        }
+    })
+    .catch(err => {
+        alert('發生錯誤，請確認網路連線。');
+    });
+});
+</script>
+{% endblock %}

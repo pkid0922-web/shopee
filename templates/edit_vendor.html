@@ -1,0 +1,52 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4">
+    <h3 class="fw-bold text-primary"><i class="fa-solid fa-pen-to-square me-2"></i>修改廠商資料：{{ vendor.short_name }}</h3>
+</div>
+
+<div class="card rounded-card border-0 shadow-sm p-4 bg-white">
+    <form action="/edit_vendor/{{ vendor.id }}" method="POST">
+        <div class="row">
+            <div class="col-md-8 border-end pe-4">
+                <div class="row g-3">
+                    <div class="col-md-4"><label class="small fw-bold">廠商編號</label><input type="text" name="vendor_no" class="form-control" value="{{ vendor.vendor_no }}"></div>
+                    <div class="col-md-4"><label class="small fw-bold">廠商簡稱</label><input type="text" name="short_name" class="form-control" value="{{ vendor.short_name }}"></div>
+                    <div class="col-md-4"><label class="small fw-bold">廠商統編</label><input type="text" name="tax_id" class="form-control" value="{{ vendor.tax_id }}"></div>
+                    <div class="col-md-12"><label class="small fw-bold">廠商全名</label><input type="text" name="full_name" class="form-control" value="{{ vendor.full_name }}"></div>
+                    <div class="col-md-4"><label class="small fw-bold">聯絡人</label><input type="text" name="contact_person" class="form-control" value="{{ vendor.contact_person }}"></div>
+                    <div class="col-md-4"><label class="small fw-bold">電話</label><input type="text" name="phone" class="form-control" value="{{ vendor.phone }}"></div>
+                    <div class="col-md-4"><label class="small fw-bold">傳真</label><input type="text" name="fax" class="form-control" value="{{ vendor.fax }}"></div>
+                    <div class="col-md-6"><label class="small fw-bold text-primary">結帳日 (號)</label><input type="number" name="closing_day" class="form-control border-primary" value="{{ vendor.closing_day }}"></div>
+                    <div class="col-md-6"><label class="small fw-bold text-primary">月結天數 (天)</label><input type="number" name="payment_day" class="form-control border-primary" value="{{ vendor.payment_day }}"></div>
+                    <div class="col-md-12"><label class="small fw-bold">倉庫地址</label><input type="text" name="warehouse_address" class="form-control" value="{{ vendor.warehouse_address }}"></div>
+                    <div class="col-md-12"><label class="small fw-bold">匯款帳號</label><input type="text" name="bank_account" class="form-control" value="{{ vendor.bank_account }}"></div>
+                </div>
+            </div>
+            
+            <div class="col-md-4 ps-4">
+                <div class="p-4 rounded-4 bg-light shadow-sm">
+                    <h6 class="fw-bold text-warning mb-3">📊 修改疊加式折扣規則</h6>
+                    {% set tiers = [
+                        {'amt': vendor.t1_amt, 'dis': vendor.t1_dis},
+                        {'amt': vendor.t2_amt, 'dis': vendor.t2_dis},
+                        {'amt': vendor.t3_amt, 'dis': vendor.t3_dis}
+                    ] %}
+                    {% for i in range(1, 4) %}
+                    <div class="mb-3">
+                        <label class="small text-muted">第 {{i}} 層</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-0">滿</span>
+                            <input type="number" name="t{{i}}_amt" class="form-control border-0" value="{{ tiers[i-1].amt }}">
+                            <span class="input-group-text bg-white border-0">打</span>
+                            <input type="number" name="t{{i}}_dis" class="form-control border-0" value="{{ tiers[i-1].dis|int }}">
+                            <span class="input-group-text bg-white border-0">折</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-warning text-white fw-bold w-100 py-3 rounded-pill mt-3 shadow-sm">儲存廠商變更</button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

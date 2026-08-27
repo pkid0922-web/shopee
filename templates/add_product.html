@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4"><h3>錄入新商品</h3><a href="/products" class="text-muted small">返回商品清單</a></div>
+<div class="card rounded-card border-0 shadow-sm p-4 bg-white">
+    <form action="/add_product" method="POST" class="row g-4">
+        <div class="col-md-6"><label class="small fw-bold">國際條碼</label><input type="text" name="barcode" class="form-control" autofocus></div>
+        <div class="col-md-6"><label class="small fw-bold">商品名稱</label><input type="text" name="name" class="form-control" required></div>
+        
+        <div class="col-md-3"><label class="small fw-bold">自編碼1</label><input type="text" name="code1" class="form-control"></div>
+        <div class="col-md-3"><label class="small fw-bold">自編碼2</label><input type="text" name="code2" class="form-control"></div>
+        
+        <div class="col-md-3">
+            <label class="small fw-bold text-info">主要供應商</label>
+            <select name="vendor_id" class="form-select border-info">
+                <option value="">(未指定)</option>
+                {% for v in vendors %}
+                <option value="{{ v.id }}">{{ v.short_name or v.full_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="col-md-3">
+            <label class="small fw-bold">分類</label>
+            <div class="input-group">
+                <select name="category_id" class="form-select">{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+                <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#addCatModal">+</button>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <label class="small fw-bold">單位</label>
+            <div class="input-group">
+                <select name="unit_id" class="form-select">{% for u in units %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select>
+                <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#addUnitModal">+</button>
+            </div>
+        </div>
+        
+        <div class="col-md-3"><label class="small fw-bold text-danger">成本</label><input type="number" name="cost" class="form-control border-danger" step="any"></div>
+        <div class="col-md-3"><label class="small fw-bold text-primary">定價</label><input type="number" name="price" class="form-control border-primary" step="any"></div>
+        <div class="col-md-3"><label class="small fw-bold">安全庫存</label><input type="number" name="safety_stock" class="form-control" value="10"></div>
+        <div class="col-md-3"><label class="small fw-bold">首批庫存</label><input type="number" name="stock" class="form-control" value="0"></div>
+        
+        <div class="col-12 text-end mt-4"><button type="submit" class="btn btn-warning text-white px-5 py-2 rounded-pill shadow fw-bold">確認新增商品</button></div>
+    </form>
+</div>
+
+<div class="modal fade" id="addCatModal" tabindex="-1"><div class="modal-dialog modal-sm modal-dialog-centered"><form action="/quick_add_cat" method="POST" class="modal-content border-0 shadow"><div class="modal-body p-4 text-center"><h6 class="fw-bold mb-3">新增分類</h6><input type="text" name="name" class="form-control mb-3" required><button type="submit" class="btn btn-primary w-100">確認</button></div></form></div></div>
+<div class="modal fade" id="addUnitModal" tabindex="-1"><div class="modal-dialog modal-sm modal-dialog-centered"><form action="/quick_add_unit" method="POST" class="modal-content border-0 shadow"><div class="modal-body p-4 text-center"><h6 class="fw-bold mb-3">新增單位</h6><input type="text" name="name" class="form-control mb-3" required><button type="submit" class="btn btn-primary w-100">確認</button></div></form></div></div>
+{% endblock %}

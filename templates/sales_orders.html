@@ -1,0 +1,83 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4 d-flex justify-content-between align-items-center">
+    <h3 class="fw-bold text-warning m-0"><i class="fa-solid fa-magnifying-glass me-2"></i>銷貨紀錄與查詢</h3>
+    <a href="/add_sales_page" class="btn btn-warning text-dark fw-bold px-4 rounded-pill shadow-sm">
+        <i class="fa-solid fa-plus me-2"></i>新增銷貨單
+    </a>
+</div>
+
+<div class="card rounded-card border-0 shadow-sm p-4 mb-4 bg-white">
+    <form action="/sales_orders" method="GET" class="row g-3 align-items-end">
+        <div class="col-md-4">
+            <label class="small fw-bold text-muted mb-1">關鍵字搜尋 (單號、客戶名稱)</label>
+            <input type="text" name="q" class="form-control bg-light" placeholder="輸入單號或客戶..." value="{{ q }}">
+        </div>
+        <div class="col-md-2">
+            <label class="small fw-bold text-muted mb-1">歸屬年份 (西元)</label>
+            <input type="number" name="year" class="form-control bg-light fw-bold text-center" value="{{ year_filter }}">
+        </div>
+        <div class="col-md-2">
+            <label class="small fw-bold text-muted mb-1">篩選歸屬月帳</label>
+            <select name="month" class="form-select bg-light">
+                <option value="">全部月份</option>
+                {% for i in range(1, 13) %}
+                <option value="{{ i }}" {% if month_filter == i|string %}selected{% endif %}>{{ i }} 月</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-dark w-100 rounded-pill fw-bold shadow-sm">查詢</button>
+        </div>
+        <div class="col-md-2">
+            <a href="/sales_orders" class="btn btn-outline-secondary w-100 rounded-pill">清除</a>
+        </div>
+    </form>
+</div>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-success rounded-4 border-0 shadow-sm mb-4 fw-bold"><i class="fa-solid fa-check me-2"></i>{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle bg-white rounded-4 shadow-sm overflow-hidden border-0">
+        <thead class="small" style="background-color: #fff3cd; color: #664d03;">
+            <tr>
+                <th class="ps-4 py-3">銷貨單號</th>
+                <th class="py-3">出貨日期</th>
+                <th class="py-3">客戶名稱</th>
+                <th class="text-center py-3">歸屬年月</th>
+                <th class="text-end py-3">單據總額</th>
+                <th class="text-center py-3">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr class="border-bottom">
+                <td class="ps-4"><div class="fw-bold text-dark fs-5">{{ order.order_no }}</div></td>
+                <td>{{ order.date.strftime('%Y-%m-%d') }}</td>
+                <td><div class="fw-bold text-primary">{{ order.customer_ref.short_name }}</div></td>
+                <td class="text-center"><span class="badge bg-danger rounded-pill px-3 py-1 fs-6">{{ order.billing_year }} 年 {{ order.billing_month }} 月</span></td>
+                <td class="text-end fw-bold fs-5 text-dark">$ {{ "{:,.0f}".format(order.total_amount) }}</td>
+                <td class="text-center">
+                    <a href="/edit_sales_order/{{ order.id }}" class="btn btn-sm btn-outline-warning rounded-pill px-3 fw-bold text-dark me-1">檢視/修改</a>
+                    <form action="/delete_sales_order/{{ order.id }}" method="POST" class="d-inline" onsubmit="return confirm('確定要作廢這張銷貨單嗎？作廢後商品將會自動加回庫存！');">
+    <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm" title="作廢此單">
+        <i class="fa-solid fa-trash-can"></i> 作廢
+    </button>
+</form>
+                    <a href="/print_sales/{{ order.id }}" target="_blank" class="btn btn-sm btn-dark rounded-pill px-3 fw-bold"><i class="fa-solid fa-print"></i> 列印</a>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not orders %}
+            <tr><td colspan="6" class="text-center py-5 text-muted">目前查無相符的銷貨單資料</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

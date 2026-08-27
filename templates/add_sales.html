@@ -1,0 +1,275 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4">
+    <h3 class="fw-bold text-primary"><i class="fa-solid fa-cart-arrow-down me-2"></i>開立銷貨單 <span class="badge bg-danger ms-2 fs-6">連續快打模式</span></h3>
+    <p class="text-muted small">提示：掃碼後按 Enter 自動跳格。在條碼框按 <kbd>F4</kbd> 可刪除該行，或直接重刷條碼以覆蓋商品。</p>
+</div>
+
+<style>
+    .cust-search-results { position: absolute; z-index: 1050; width: 100%; top: 100%; left: 0; background: white; border: 1px solid #e0e0e0; border-radius: 0 0 10px 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); display: none; max-height: 250px; overflow-y: auto; }
+    .cust-search-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f8f9fa; transition: 0.2s; }
+    .cust-search-item:hover { background: #f0f8ff; }
+    .cust-search-item.active { background: #0d6efd; color: white; }
+    #searchOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: none; justify-content: center; align-items: center; outline: none; }
+    .search-modal { background: white; width: 85%; max-width: 1100px; max-height: 80vh; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+    .search-body { flex: 1; overflow-y: auto; padding: 10px; }
+    .search-row { cursor: pointer; border-bottom: 1px solid #eee; }
+    .search-row.active td { background-color: #0d6efd !important; color: white !important; }
+    /* 網格輸入框美化 */
+    .grid-input { border: 1px solid transparent; background-color: transparent; transition: 0.2s; }
+    .grid-input:focus { border: 2px solid #0d6efd; background-color: #fff; outline: none; box-shadow: 0 0 5px rgba(13,110,253,0.3); }
+    .grid-readonly { background-color: #f8f9fa !important; color: #6c757d; border: 1px solid #dee2e6; }
+</style>
+
+<form action="/add_sales" method="POST" id="salesForm">
+    <div class="card rounded-card border-0 shadow-sm p-4 mb-4 bg-white border-start border-5 border-primary">
+        <div class="row g-4">
+            <div class="col-md-5 position-relative">
+                <label class="small fw-bold text-primary">1. 銷貨客戶 (搜尋編號/簡稱)</label>
+                <input type="text" id="custSearch" class="form-control form-control-lg border-primary shadow-sm" placeholder="🔍 搜尋客戶..." autocomplete="off" required>
+                <input type="hidden" name="customer_id" id="hiddenCustId">
+                <div id="custDropdown" class="cust-search-results text-dark"></div>
+            </div>
+            <div class="col-md-4">
+                <label class="small fw-bold">銷貨單據日期</label>
+                <input type="date" name="date" class="form-control form-control-lg shadow-sm" value="{{ today }}" required>
+            </div>
+            <div class="col-md-3">
+                <label class="small fw-bold text-primary">歸屬月帳</label>
+                <input type="number" name="billing_month" class="form-control form-control-lg shadow-sm border-primary" value="{{ month }}" required>
+            </div>
+        </div>
+    </div>
+
+    <div class="card rounded-card border-0 shadow-sm bg-white overflow-hidden mb-4">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-primary small">
+                <tr>
+                    <th width="20%" class="ps-3 py-3">2. 國際條碼 (掃碼/自編)</th>
+                    <th width="25%" class="py-3">商品名稱</th>
+                    <th width="10%" class="py-3 text-center">3. 數量</th>
+                    <th width="12%" class="py-3 text-end">4. 單價</th>
+                    <th width="8%" class="py-3 text-center text-danger">別(1=現金)</th>
+                    <th width="20%" class="py-3">5. 備註 (Enter新增行)</th>
+                    <th width="5%" class="py-3 text-center">操作</th>
+                </tr>
+            </thead>
+            <tbody id="itemList">
+                </tbody>
+        </table>
+    </div>
+    
+    <div class="text-end mt-4">
+        <button type="submit" class="btn btn-primary px-5 py-3 rounded-pill fw-bold shadow fs-5"><i class="fa-solid fa-check-double me-2"></i>確認送出銷貨單</button>
+    </div>
+</form>
+
+<div id="searchOverlay" tabindex="-1">
+    <div class="search-modal">
+        <div class="search-body">
+            <table class="table align-middle"><thead class="sticky-top bg-white"><tr class="text-muted small"><th>商品名稱</th><th>國際條碼</th><th>自編碼</th></tr></thead><tbody id="resList"></tbody></table>
+        </div>
+    </div>
+</div>
+
+<script>
+// === 客戶搜尋邏輯 ===
+const custData = [ {% for c in customers %} { id: "{{ c.id }}", no: "{{ c.cust_no }}", name: "{{ c.short_name }}" }, {% endfor %} ];
+const custSearch = document.getElementById('custSearch'), custDropdown = document.getElementById('custDropdown'), hiddenCustId = document.getElementById('hiddenCustId');
+let filteredCusts = [], custActiveIdx = -1;
+
+custSearch.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim(); hiddenCustId.value = ''; 
+    if (!q) { filteredCusts = custData; } else { filteredCusts = custData.filter(c => c.no.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)); }
+    showCustDropdown();
+});
+function showCustDropdown() {
+    if (filteredCusts.length === 0) { custDropdown.innerHTML = '<div class="p-3 text-muted small text-center">找不到相符的客戶</div>'; } 
+    else { custDropdown.innerHTML = filteredCusts.map((c, i) => `<div class="cust-search-item" onclick="selectCust(${i})" id="cust-row-${i}"><span class="fw-bold">${c.no}</span> - <span>${c.name}</span></div>`).join(''); }
+    custDropdown.style.display = 'block'; custActiveIdx = -1;
+}
+function selectCust(idx) {
+    const c = filteredCusts[idx]; custSearch.value = `${c.no} - ${c.name}`; hiddenCustId.value = c.id;
+    custDropdown.style.display = 'none'; 
+    // 💡 選擇完客戶，自動跳到第一行的條碼輸入框
+    const firstBarcode = document.querySelector('.barcode-input');
+    if(firstBarcode) firstBarcode.focus();
+}
+custSearch.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); custActiveIdx = Math.min(custActiveIdx + 1, filteredCusts.length - 1); updateCustActive(); } 
+    else if (e.key === 'ArrowUp') { e.preventDefault(); custActiveIdx = Math.max(custActiveIdx - 1, 0); updateCustActive(); } 
+    else if (e.key === 'Enter') { e.preventDefault(); if (custActiveIdx > -1 && filteredCusts.length > 0) selectCust(custActiveIdx); else if (filteredCusts.length === 1) selectCust(0); } 
+    else if (e.key === 'Escape') { custDropdown.style.display = 'none'; }
+});
+function updateCustActive() { document.querySelectorAll('.cust-search-item').forEach((el, i) => { el.classList.toggle('active', i === custActiveIdx); if (i === custActiveIdx) el.scrollIntoView({ block: 'nearest' }); }); }
+document.addEventListener('click', e => { if (!custSearch.contains(e.target) && !custDropdown.contains(e.target)) custDropdown.style.display = 'none'; });
+
+// === 💡 連續網格快打邏輯 ===
+const itemList = document.getElementById('itemList');
+let activeTr = null; // 紀錄當前觸發搜尋的是哪一行
+let sList = [], aIdx = -1;
+const overlay = document.getElementById('searchOverlay'), resList = document.getElementById('resList');
+
+// 產生新的一行網格
+function createRow() {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td class="ps-3 position-relative">
+            <input type="text" class="form-control fw-bold grid-input barcode-input text-primary" placeholder="請掃描或輸入..." autocomplete="off">
+            <input type="hidden" name="product_id[]" class="pid-input">
+        </td>
+        <td><input type="text" class="form-control grid-readonly name-input" readonly tabindex="-1" placeholder="商品名稱"></td>
+        <td><input type="number" name="qty[]" class="form-control text-center fw-bold grid-input qty-input" placeholder="數量"></td>
+        <td><input type="number" name="price[]" class="form-control text-end fw-bold grid-input price-input" step="any" placeholder="單價"></td>
+        <td><input type="text" class="form-control text-center text-danger fw-bold grid-input type-input" placeholder="1=現金"></td>
+        <td><input type="text" name="remark[]" class="form-control grid-input remark-input" placeholder="備註"></td>
+        <td class="text-center"><button type="button" class="btn btn-link text-danger p-0 del-btn" title="刪除此行 (F4)"><i class="fa-solid fa-xmark fs-4"></i></button></td>
+    `;
+    itemList.appendChild(tr);
+    return tr;
+}
+
+// 網頁載入時，先建立第一行空白行
+window.onload = () => { createRow(); };
+
+// 委派事件處理網格內所有的鍵盤動作
+itemList.addEventListener('keydown', async function(e) {
+    const tr = e.target.closest('tr');
+    if (!tr) return;
+
+    // 💡 [F4 刪除整行]
+    if (e.key === 'F4') {
+        e.preventDefault();
+        tr.remove();
+        // 如果全被刪光了，自動補一行新的
+        if (itemList.children.length === 0) {
+            createRow().querySelector('.barcode-input').focus();
+        } else {
+            // 刪除後，讓游標回到最後一行的條碼框
+            const lastRow = itemList.lastElementChild;
+            lastRow.querySelector('.barcode-input').focus();
+        }
+        return;
+    }
+
+    // 💡 [Enter 換格與觸發邏輯]
+    if (e.key === 'Enter') {
+        e.preventDefault();
+
+        // 1. 條碼框按 Enter
+        if (e.target.classList.contains('barcode-input')) {
+            const v = e.target.value.trim();
+            if (!v) return;
+            if (!hiddenCustId.value) { alert('請先在最上方選擇「銷貨客戶」！'); custSearch.focus(); return; }
+            activeTr = tr; // 記住是哪一行觸發的
+            searchProd(v, tr);
+        }
+        // 2. 數量框按 Enter
+        else if (e.target.classList.contains('qty-input')) {
+            tr.querySelector('.price-input').focus();
+            tr.querySelector('.price-input').select();
+        }
+        // 3. 單價框按 Enter
+        else if (e.target.classList.contains('price-input')) {
+            tr.querySelector('.type-input').focus();
+            tr.querySelector('.type-input').select();
+        }
+        // 4. 別(現金價)框按 Enter
+        else if (e.target.classList.contains('type-input')) {
+            tr.querySelector('.remark-input').focus();
+        }
+        // 5. 備註框按 Enter (一輪結束，準備生下一行！)
+        else if (e.target.classList.contains('remark-input')) {
+            // 處理現金價代打
+            let typeVal = tr.querySelector('.type-input').value.trim();
+            let remarkInput = tr.querySelector('.remark-input');
+            if (typeVal === '1' && !remarkInput.value.includes('現金價')) {
+                remarkInput.value = '現金價 ' + remarkInput.value;
+                remarkInput.classList.add('text-danger', 'bg-danger-subtle');
+            }
+            
+            // 💡 只有當這行真的有選商品 (有 hidden ID) 才生下一行，避免空打
+            if (tr.querySelector('.pid-input').value) {
+                // 如果這是表格的最後一行，才需要新增；否則只是往下跳
+                if (tr === itemList.lastElementChild) {
+                    const newTr = createRow();
+                    newTr.querySelector('.barcode-input').focus();
+                } else {
+                    tr.nextElementSibling.querySelector('.barcode-input').focus();
+                }
+            }
+        }
+    }
+});
+
+// 點擊垃圾桶按鈕刪除
+itemList.addEventListener('click', function(e) {
+    if (e.target.closest('.del-btn')) {
+        e.target.closest('tr').remove();
+        if (itemList.children.length === 0) createRow().querySelector('.barcode-input').focus();
+    }
+});
+
+// 送出表單前，把沒有填寫 product_id (空行) 的 <tr> 砍掉，避免後端報錯
+document.getElementById('salesForm').addEventListener('submit', function() {
+    const rows = itemList.querySelectorAll('tr');
+    rows.forEach(r => {
+        if (!r.querySelector('.pid-input').value) { r.remove(); }
+    });
+});
+
+// === 產品搜尋與填入機制 ===
+function searchProd(v, tr){ 
+    fetch(`/api/search_products?q=${v}`).then(r=>r.json()).then(d=>{ 
+        if(d.length === 1) { populateProd(d[0], tr); } 
+        else if(d.length > 1){ sList=d; showM(); } 
+        else { alert('找不到商品！'); tr.querySelector('.barcode-input').value=''; }
+    });
+}
+function showM(){ 
+    resList.innerHTML = sList.map((p,i)=>`<tr class="search-row" onclick="selectProd(sList[${i}])"><td><b class="fs-5">${p.name}</b></td><td>${p.barcode||''}</td><td>${p.code1||''}</td></tr>`).join(''); 
+    overlay.style.display='flex'; overlay.focus(); aIdx = 0; document.addEventListener('keydown', mK); updateA(); 
+}
+function mK(e){ 
+    if(overlay.style.display !== 'flex') return;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); aIdx = Math.min(aIdx+1, sList.length-1); updateA(); } 
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); aIdx = Math.max(aIdx-1, 0); updateA(); } 
+    else if(e.key === 'Enter'){ e.preventDefault(); e.stopPropagation(); if(aIdx >= 0 && aIdx < sList.length) { selectProd(sList[aIdx]); } } 
+    else if(e.key === 'Escape'){ hideM(); activeTr.querySelector('.barcode-input').focus(); }
+}
+function updateA(){ const rows = resList.querySelectorAll('.search-row'); rows.forEach((el, i) => { el.classList.remove('active'); if (i === aIdx) { el.classList.add('active'); el.scrollIntoView({ block: 'nearest' }); } }); }
+function hideM(){ overlay.style.display='none'; document.removeEventListener('keydown', mK); }
+
+// 從搜尋結果選擇商品
+function selectProd(p) { 
+    if(!activeTr) return;
+    hideM();
+    populateProd(p, activeTr);
+}
+
+// 💡 實際填入資料到該行，並自動抓歷史價格
+async function populateProd(p, tr) {
+    tr.querySelector('.barcode-input').value = p.barcode || p.code1;
+    tr.querySelector('.name-input').value = p.name;
+    tr.querySelector('.pid-input').value = p.id;
+    
+    // 預設數量為 1
+    const qtyInput = tr.querySelector('.qty-input');
+    if (!qtyInput.value) qtyInput.value = 1;
+    
+    const prInput = tr.querySelector('.price-input');
+    const cid = document.getElementById('hiddenCustId').value;
+    
+    // 抓取歷史價格
+    try {
+        const res = await fetch(`/api/historical_prices?customer_id=${cid}&product_id=${p.id}`);
+        const data = await res.json();
+        if (data && data.length > 0) { prInput.value = data[0].price; } else { prInput.value = p.price; }
+    } catch(e) { prInput.value = p.price; }
+
+    // 💡 資料填好後，自動將游標跳到該行的「數量框」並全選
+    qtyInput.focus(); 
+    qtyInput.select();
+}
+</script>
+{% endblock %}

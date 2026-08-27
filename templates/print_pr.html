@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>採購叫貨單 - {{ pr.req_no }}</title>
+    <style>
+        body { font-family: "Microsoft JhengHei", "微軟正黑體", sans-serif; color: #000; margin: 0; padding: 0; background: #fff; }
+        .print-container { width: 100%; max-width: 21cm; margin: 0 auto; padding: 0.5cm; box-sizing: border-box; }
+        
+        /* 壓縮表頭 */
+        .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 10px; }
+        .header h1 { margin: 0 0 5px 0; font-size: 20pt; letter-spacing: 5px; }
+        .header p { margin: 0; font-size: 11pt; }
+        
+        /* 壓縮傳真資訊區 */
+        .fax-info { display: flex; justify-content: space-between; border: 2px solid #000; padding: 8px 12px; margin-bottom: 10px; border-radius: 8px; }
+        .fax-col { width: 48%; font-size: 11pt; line-height: 1.5; }
+        .highlight { font-size: 12pt; font-weight: bold; }
+        
+        /* 緊湊型表格 */
+        .item-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        .item-table th, .item-table td { border: 1px solid #000; padding: 4px 6px; font-size: 11pt; }
+        .item-table th { background-color: #f2f2f2; text-align: center; }
+        .text-center { text-align: center; }
+        
+        /* 壓縮備註與簽名區 */
+        .footer-note { font-size: 11pt; font-weight: bold; padding: 8px; background: #f9f9f9; border: 1px dashed #000; border-radius: 5px; margin-bottom: 15px; }
+        .signature-area { display: flex; justify-content: space-between; font-size: 12pt; margin-top: 10px; }
+        
+        @media print {
+            @page { size: A4 portrait; margin: 0.8cm; }
+            .no-print { display: none; }
+            .print-container { padding: 0; }
+        }
+        .btn-print { margin: 15px; padding: 8px 16px; font-size: 12pt; cursor: pointer; background: #198754; color: #fff; border: none; border-radius: 5px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="text-align: center;">
+        <button class="btn-print" onclick="window.print()">🖨️ 確認列印 (A4 緊湊格式)</button>
+        <button class="btn-print" style="background: #6c757d;" onclick="window.location.href='/'">返回首頁</button>
+    </div>
+    
+    <div class="print-container">
+        <div class="header">
+            <h1>衣橙企業 - 採購叫貨單</h1>
+            <p>單據編號：{{ pr.req_no }}</p>
+        </div>
+        
+        <div class="fax-info">
+            <div class="fax-col">
+                <div>致 (TO)：<span class="highlight">{{ pr.vendor_ref.full_name }}</span></div>
+                <div>傳真 (FAX)：<span class="highlight">{{ pr.vendor_ref.fax or '____________________' }}</span></div>
+                <div>聯絡人：{{ pr.vendor_ref.contact_person or '____________________' }}</div>
+            </div>
+            <div class="fax-col">
+                <div>發文 (FROM)：衣橙企業</div>
+                <div>日期 (DATE)：{{ pr.date.strftime('%Y-%m-%d') }}</div>
+                <div>歸屬月帳：{{ pr.billing_year }} 年 {{ pr.billing_month }} 月</div>
+            </div>
+        </div>
+        
+        <table class="item-table">
+            <thead>
+                <tr>
+                    <th width="10%">項次</th>
+                    <th width="25%">國際條碼</th>
+                    <th width="45%">產品名稱</th>
+                    <th width="10%">單位</th>
+                    <th width="10%">數量</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pr.items %}
+                <tr>
+                    <td class="text-center">{{ loop.index }}</td>
+                    <td class="text-center" style="font-family: monospace;">{{ item.product_ref.barcode or '---' }}</td>
+                    <td><strong>{{ item.product_ref.name }}</strong></td>
+                    <td class="text-center">{{ item.product_ref.unit_ref.name if item.product_ref.unit_ref else '個' }}</td>
+                    <td class="text-center" style="font-size: 14pt; font-weight: bold;">{{ item.qty }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div class="footer-note">
+            ⚠️ 備註：收到本單後，請協助安排出貨，並在出貨單上註明本公司單號。如有缺貨或交期變更，請務必來電告知，謝謝！
+        </div>
+        
+        <div class="signature-area">
+            <div>採購人員簽名：____________________</div>
+            <div>廠商確認回簽：____________________</div>
+        </div>
+    </div>
+</body>
+<script>window.onload = function() { window.print(); }</script>
+</html>

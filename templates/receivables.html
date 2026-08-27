@@ -1,0 +1,102 @@
+{% extends "layout.html" %}
+{% block content %}
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-success rounded-4 border-0 shadow-sm mb-4 fw-bold"><i class="fa-solid fa-check-circle me-2"></i>{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="mb-4">
+    <h3 class="fw-bold text-success"><i class="fa-solid fa-file-invoice-dollar me-2"></i>應收帳款管理 (依業務分組)</h3>
+    <p class="text-muted small">系統已自動扣除該月帳內客戶的退貨金額，並套用客戶專屬折扣計算出「結欠餘額」。</p>
+</div>
+
+<div class="card rounded-card border-0 shadow-sm p-4 mb-4 bg-white">
+    <form action="/receivables" method="GET" class="row g-3 align-items-end">
+        <div class="col-md-2">
+            <label class="small fw-bold text-muted mb-1">目標年份 (西元)</label>
+            <input type="number" name="year" class="form-control bg-light fw-bold text-center" value="{{ target_year }}">
+        </div>
+        <div class="col-md-2">
+            <label class="small fw-bold text-muted mb-1">目標月份</label>
+            <select name="month" class="form-select bg-light">
+                {% for i in range(1, 13) %}
+                <option value="{{ i }}" {% if target_month == i %}selected{% endif %}>{{ i }} 月</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-dark w-100 rounded-pill fw-bold shadow-sm">查詢帳款</button>
+        </div>
+    </form>
+</div>
+
+{% for rep_name, data in reps_summary.items() %}
+<div class="card rounded-card border-0 shadow-sm mb-5 bg-white overflow-hidden">
+    <div class="card-header bg-dark text-white p-3 d-flex justify-content-between align-items-center border-0">
+        <h5 class="fw-bold m-0"><i class="fa-solid fa-user-tie me-2"></i>業務：{{ rep_name }}</h5>
+        <div class="fw-bold">
+            <span class="me-3">總應收: $ {{ "{:,.0f}".format(data.total_ar - data.total_returns) }}</span>
+            <span class="text-warning">總未收: $ {{ "{:,.0f}".format(data.total_unpaid) }}</span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light small text-muted">
+                    <tr>
+                        <th class="ps-4 py-3">客戶名稱</th>
+                        <th class="text-end py-3">本期銷貨原價</th>
+                        <th class="text-end py-3 text-danger">退貨總額</th>
+                        <th class="text-end py-3">已收帳款</th>
+                        <th class="text-end py-3 text-danger fs-6 fw-bold">折後未收餘額</th>
+                        <th class="text-center py-3" width="300">快速入帳</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in data.customers %}
+                    <tr>
+                        <td class="ps-4">
+                            <div class="fw-bold text-dark fs-5">{{ c.customer.short_name }}</div>
+                            <div class="small text-muted">{{ c.customer.cust_no }}</div>
+                        </td>
+                        <td class="text-end fw-bold text-dark">$ {{ "{:,.0f}".format(c.ar) }}</td>
+                        <td class="text-end fw-bold text-danger">- $ {{ "{:,.0f}".format(c.returns) }}</td>
+                        <td class="text-end fw-bold text-success">- $ {{ "{:,.0f}".format(c.received) }}</td>
+                        <td class="text-end fw-bold text-danger fs-5">$ {{ "{:,.0f}".format(c.unpaid) }}</td>
+                        <td class="pe-4">
+                            {% if c.unpaid > 0 %}
+                            <form action="/add_payment" method="POST" class="d-flex gap-2 justify-content-end mb-0">
+                                <input type="hidden" name="customer_id" value="{{ c.customer.id }}">
+                                <input type="hidden" name="year" value="{{ target_year }}">
+                                <input type="hidden" name="month" value="{{ target_month }}">
+                                <input type="number" name="amount" class="form-control form-control-sm border-success shadow-sm" style="width: 100px;" placeholder="實收金額" required>
+                                <select name="method" class="form-select form-select-sm border-success shadow-sm" style="width: 85px;">
+                                    <option value="現金">現金</option>
+                                    <option value="支票">支票</option>
+                                    <option value="匯款">匯款</option>
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-success rounded-pill fw-bold px-3 shadow-sm">入帳</button>
+                            </form>
+                            {% else %}
+                            <div class="text-end text-success fw-bold"><i class="fa-solid fa-thumbs-up me-1"></i>無須收款</div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% if not reps_summary %}
+<div class="text-center py-5 text-muted">
+    <i class="fa-solid fa-folder-open fs-1 mb-3 text-light"></i>
+    <h5>這個月沒有應收帳款紀錄</h5>
+</div>
+{% endif %}
+{% endblock %}

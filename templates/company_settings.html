@@ -1,0 +1,71 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4">
+    <h3 class="fw-bold text-info"><i class="fa-solid fa-building me-2"></i>公司基本資料設定</h3>
+    <p class="text-muted small">此處設定的資料，未來可供各種對外報表、單據（如對帳單、銷貨單）自動讀取使用。</p>
+</div>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-success rounded-4 border-0 shadow-sm mb-4 fw-bold"><i class="fa-solid fa-check me-2"></i>{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="card rounded-card border-0 shadow-sm p-4 bg-white mx-auto" style="max-width: 900px;">
+    <form action="/company_settings" method="POST">
+        <div class="row g-4">
+            <div class="col-md-8">
+                <label class="small fw-bold">公司正式全名</label>
+                <input type="text" name="name" class="form-control form-control-lg border-primary shadow-sm" value="{{ profile.name }}" required>
+            </div>
+            <div class="col-md-4">
+                <label class="small fw-bold">公司簡稱 (選填)</label>
+                <input type="text" name="short_name" class="form-control form-control-lg shadow-sm" value="{{ profile.short_name or '' }}">
+            </div>
+            
+            <div class="col-md-6">
+                <label class="small fw-bold">統一編號</label>
+                <input type="text" name="tax_id" class="form-control shadow-sm" value="{{ profile.tax_id or '' }}">
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">負責人 / 聯絡人</label>
+                <input type="text" name="contact_person" class="form-control shadow-sm" value="{{ profile.contact_person or '' }}">
+            </div>
+
+            <div class="col-md-6">
+                <label class="small fw-bold">聯絡電話</label>
+                <input type="text" name="phone" class="form-control shadow-sm" value="{{ profile.phone or '' }}">
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">傳真號碼</label>
+                <input type="text" name="fax" class="form-control shadow-sm" value="{{ profile.fax or '' }}">
+            </div>
+
+            <div class="col-md-12">
+                <label class="small fw-bold">公司登記地址 / 營業地址</label>
+                <input type="text" name="address" class="form-control shadow-sm" value="{{ profile.address or '' }}">
+            </div>
+            
+            <div class="col-md-12">
+                <label class="small fw-bold text-success">預設匯款帳號 (將顯示於客戶對帳單上)</label>
+                <input type="text" name="bank_account" class="form-control border-success shadow-sm" placeholder="例如：衣橙銀行(000) 1234-5678-9012" value="{{ profile.bank_account or '' }}">
+            </div>
+            
+            <div class="col-md-12 mt-4">
+                <h5 class="fw-bold text-danger border-bottom pb-2"><i class="fa-solid fa-calendar-check me-2"></i>全域帳務設定</h5>
+            </div>
+            <div class="col-md-4">
+                <label class="small fw-bold">公司統一結帳日 (號)</label>
+                <input type="number" name="closing_day" class="form-control form-control-lg shadow-sm border-danger text-danger fw-bold" min="1" max="31" value="{{ profile.closing_day or 31 }}">
+                <small class="text-muted mt-1 d-block">當系統時間超過此日期後，所有新開立的進/銷/指配單，預設歸屬月帳將自動跳轉至下個月。</small>
+            </div>
+        </div>
+
+        <div class="text-end mt-5">
+            <button type="submit" class="btn btn-info text-white px-5 py-3 rounded-pill fw-bold shadow fs-5"><i class="fa-solid fa-floppy-disk me-2"></i>儲存公司設定</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

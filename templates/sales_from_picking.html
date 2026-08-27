@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4 d-flex justify-content-between align-items-center">
+    <div>
+        <h3 class="fw-bold text-primary"><i class="fa-solid fa-file-invoice-dollar me-2"></i>揀貨單轉銷貨 (單號: {{ slip.slip_no }})</h3>
+        <p class="text-muted small mb-0">請確認出貨數量與單價，按下確認後將正式成立銷貨單並計算毛利。</p>
+    </div>
+    <a href="/" class="btn btn-outline-secondary rounded-pill fw-bold shadow-sm">
+        <i class="fa-solid fa-arrow-left me-1"></i>取消返回
+    </a>
+</div>
+
+<form action="/finalize_sales" method="POST" id="convertForm">
+    <input type="hidden" name="slip_id" value="{{ slip.id }}">
+    <input type="hidden" name="customer_id" value="{{ slip.customer_id }}">
+    
+    <div class="card rounded-card border-0 shadow-sm p-4 mb-4 bg-white border-start border-5 border-primary">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-5">
+                <label class="small fw-bold text-muted">出貨客戶</label>
+                <div class="fs-4 fw-bold text-primary">{{ slip.customer_ref.cust_no }} - {{ slip.customer_ref.short_name }}</div>
+            </div>
+            <div class="col-md-4">
+                <label class="small fw-bold">銷貨單日期 (預設今日)</label>
+                <input type="date" name="date" class="form-control form-control-lg shadow-sm" value="{{ slip.date.strftime('%Y-%m-%d') }}" required>
+            </div>
+            <div class="col-md-3">
+                <label class="small fw-bold text-primary">歸屬月帳</label>
+                <input type="number" name="billing_month" class="form-control form-control-lg shadow-sm border-primary fw-bold" value="{{ current_month }}" required>
+            </div>
+        </div>
+    </div>
+
+    <div class="card rounded-card border-0 shadow-sm overflow-hidden mb-4">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-primary small">
+                <tr>
+                    <th class="ps-4 py-3">商品條碼</th>
+                    <th class="py-3">商品名稱</th>
+                    <th width="100" class="py-3 text-center">出貨數量</th>
+                    <th width="150" class="py-3 text-end">單價</th>
+                    <th width="80" class="py-3 text-center text-danger">別</th>
+                    <th class="py-3">備註</th>
+                    <th width="50"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in slip.items %}
+                <tr class="border-bottom">
+                    <td class="ps-4 text-muted small">{{ item.product_ref.barcode or item.product_ref.code1 or '---' }}</td>
+                    <td>
+                        <input type="hidden" name="product_id[]" value="{{ item.product_id }}">
+                        <div class="fw-bold text-dark fs-5">{{ item.product_ref.name }}</div>
+                    </td>
+                    <td><input type="number" name="qty[]" class="form-control text-center text-primary fw-bold bg-primary-subtle border-primary" value="{{ item.qty }}" min="1" required></td>
+                    <td><input type="number" name="price[]" class="form-control text-end fw-bold" value="{{ item.product_ref.price }}" step="any" required></td>
+                    <td><input type="text" class="form-control text-center text-danger fw-bold border-danger type-input" placeholder="1=現金" autocomplete="off"></td>
+                    <td><input type="text" name="remark[]" class="form-control remark-input" value="{{ item.remark or '' }}"></td>
+                    <td><button type="button" class="btn btn-link text-danger p-0 m-0" onclick="this.closest('tr').remove()"><i class="fa-solid fa-trash-can"></i></button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="text-end">
+        <button type="submit" class="btn btn-primary px-5 py-3 rounded-pill fw-bold shadow fs-5"><i class="fa-solid fa-check-circle me-2"></i>確認轉立銷貨單</button>
+    </div>
+</form>
+
+<script>
+// 💡 在表單送出前，自動掃描「別」欄位，如果是 1 就幫備註加上現金價
+document.getElementById('convertForm').addEventListener('submit', function(e) {
+    const types = document.querySelectorAll('.type-input');
+    const remarks = document.querySelectorAll('.remark-input');
+    
+    for (let i = 0; i < types.length; i++) {
+        if (types[i].value.trim() === '1') {
+            // 如果原本的備註還沒有現金價這三個字，就幫他加上去
+            if (!remarks[i].value.includes('現金價')) {
+                remarks[i].value = '現金價 ' + remarks[i].value;
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<style>
+    /* 針對 PDA 隱藏原本電腦版的頂部導覽列，最大化工作可視區域 */
+    .navbar { display: none !important; }
+    body { padding-top: 15px; background-color: #f4f6f9; }
+    
+    /* PDA 專屬超大觸控按鈕設計 */
+    .pda-btn { border-radius: 20px; padding: 25px 15px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; text-decoration: none; color: white; transition: 0.2s; box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+    .pda-btn:active { transform: scale(0.95); box-shadow: 0 5px 10px rgba(0,0,0,0.1); }
+    .pda-icon { font-size: 3rem; }
+    .pda-title { font-size: 1.3rem; font-weight: bold; letter-spacing: 1px; }
+</style>
+
+<div class="container-fluid px-2">
+    <div class="d-flex justify-content-between align-items-center mb-4 mt-2">
+        <h4 class="fw-bold text-dark m-0"><i class="fa-solid fa-mobile-screen text-primary me-2"></i>PDA 作業中心</h4>
+        <a href="/logout" class="btn btn-outline-danger btn-sm rounded-pill fw-bold px-3 py-2">登出系統</a>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <a href="/add_picking_page" class="pda-btn bg-info text-white">
+                <i class="fa-solid fa-barcode pda-icon"></i>
+                <div class="pda-title">PA760 現場撿貨</div>
+            </a>
+        </div>
+        <div class="col-6">
+            <a href="/products" class="pda-btn bg-primary text-white" style="padding: 20px 10px;">
+                <i class="fa-solid fa-box-open pda-icon" style="font-size: 2rem;"></i>
+                <div class="pda-title" style="font-size: 1.1rem;">商品查詢</div>
+            </a>
+        </div>
+        <div class="col-6">
+            <a href="/customers" class="pda-btn bg-success text-white" style="padding: 20px 10px;">
+                <i class="fa-solid fa-users pda-icon" style="font-size: 2rem;"></i>
+                <div class="pda-title" style="font-size: 1.1rem;">客戶查詢</div>
+            </a>
+        </div>
+    </div>
+
+    <div>
+        <h6 class="fw-bold text-muted mb-3"><i class="fa-solid fa-bullhorn me-2"></i>系統公告</h6>
+        <div class="list-group shadow-sm rounded-4 border-0">
+            {% for a in announcements %}
+            <div class="list-group-item p-3 border-0 border-bottom bg-white">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong class="text-dark fs-6">{{ a.title }}</strong>
+                    <span class="badge bg-light text-muted border">{{ a.date.strftime('%m/%d') }}</span>
+                </div>
+                <div class="small text-secondary" style="white-space: pre-wrap; line-height: 1.5;">{{ a.content }}</div>
+            </div>
+            {% else %}
+            <div class="list-group-item p-4 text-center text-muted border-0 bg-white small">目前沒有新公告</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}

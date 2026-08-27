@@ -1,0 +1,144 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-4 d-flex justify-content-between align-items-center">
+    <h3 class="fw-bold text-success m-0"><i class="fa-solid fa-box-open me-2"></i>商品資料庫</h3>
+    <div class="d-flex align-items-center">
+        <div class="btn-group me-2 shadow-sm">
+            <button type="button" class="btn btn-outline-dark fw-bold rounded-pill dropdown-toggle px-3" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fa-solid fa-file-export me-1"></i>匯出 Excel
+            </button>
+            <ul class="dropdown-menu shadow border-0 mt-1">
+                <li>
+                    <a class="dropdown-item fw-bold text-success py-2" href="/export_products?export_type=all">
+                        <i class="fa-solid fa-database me-2"></i>匯出全部商品
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <a class="dropdown-item fw-bold text-primary py-2" href="/export_products?export_type=filtered&q={{ q }}&status={{ status }}">
+                        <i class="fa-solid fa-filter me-2"></i>匯出當前搜尋結果
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <a href="/download_product_template" class="btn btn-outline-success fw-bold rounded-pill me-2 shadow-sm"><i class="fa-solid fa-download me-1"></i>下載匯入範本</a>
+        <button class="btn btn-warning fw-bold rounded-pill shadow-sm me-2" data-bs-toggle="modal" data-bs-target="#uploadModal"><i class="fa-solid fa-file-excel me-1"></i>批次匯入</button>
+        <a href="/add_product_page" class="btn btn-success fw-bold rounded-pill shadow-sm"><i class="fa-solid fa-plus me-1"></i>新增商品</a>
+    </div>
+</div>
+
+<div class="card rounded-card border-0 shadow-sm p-3 mb-4 bg-white">
+    <form action="/products" method="GET" class="row g-2 align-items-center">
+        <div class="col-md-5">
+            <input type="text" name="q" class="form-control bg-light" placeholder="搜尋 條碼 / 自編碼 / 商品名稱 / 廠商名稱..." value="{{ q }}">
+        </div>
+        <div class="col-md-3">
+            <select name="status" class="form-select bg-light">
+                <option value="all" {% if status == 'all' %}selected{% endif %}>全部狀態</option>
+                <option value="on" {% if status == 'on' %}selected{% endif %}>上架中</option>
+                <option value="off" {% if status == 'off' %}selected{% endif %}>已停用</option>
+            </select>
+        </div>
+        <div class="col-md-4 d-flex">
+            <button type="submit" class="btn btn-dark fw-bold w-100 me-2 rounded-pill"><i class="fa-solid fa-magnifying-glass me-1"></i>搜尋</button>
+            <a href="/products" class="btn btn-outline-secondary fw-bold w-100 rounded-pill">清除</a>
+        </div>
+    </form>
+</div>
+
+<div class="card rounded-card border-0 shadow-sm bg-white overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 text-center">
+            <thead class="small" style="background-color: #343a40; color: white;">
+                <tr>
+                    <th class="ps-4 py-3 text-start">商品名稱 / 供應商</th>
+                    <th class="py-3">國際條碼 / 自編碼</th>
+                    <th class="py-3">分類</th>
+                    <th class="py-3 text-secondary">上架日期</th>
+                    <th class="py-3 text-primary">總進貨</th>
+                    <th class="py-3 text-danger">總銷售</th>
+                    <th class="py-3">目前庫存</th>
+                    <th class="py-3">成本 / 定價</th>
+                    <th class="py-3">狀態</th>
+                    <th class="pe-4 py-3">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in products %}
+                <tr class="border-bottom">
+                    <td class="ps-4 text-start">
+                        <div class="fw-bold text-dark" style="font-size: 16px;">{{ p.name }}</div>
+                        <div class="text-muted small mt-1"><i class="fa-solid fa-truck-field me-1"></i>{{ p.vendor_ref.short_name if p.vendor_ref else '無' }}</div>
+                    </td>
+                    <td>
+                        <div><span class="badge bg-secondary mb-1">{{ p.barcode or '無條碼' }}</span></div>
+                        <div class="text-muted small">{{ p.code1 or '無自編' }}</div>
+                    </td>
+                    <td><span class="badge border border-secondary text-secondary">{{ p.category_ref.name if p.category_ref else '未分類' }}</span></td>
+                    
+                    <td class="text-secondary small fw-bold">
+                        <i class="fa-regular fa-calendar-plus me-1"></i>
+                        {{ p.created_at.strftime('%Y-%m-%d') if p.created_at else '早期建檔' }}
+                    </td>
+
+                    <td class="fw-bold fs-5 text-primary">{{ stats[p.id].purchases }}</td>
+                    <td class="fw-bold fs-5 text-danger">{{ stats[p.id].sales }}</td>
+                    
+                    <td>
+                        <span class="fw-bold fs-5 {% if p.stock <= p.safety_stock %}text-danger{% else %}text-success{% endif %}">
+                            {{ p.stock }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="text-muted small">成本: $ {{ "{:,.2f}".format(p.cost) }}</div>
+                        <div class="fw-bold text-dark">定價: $ {{ "{:,.0f}".format(p.price) }}</div>
+                    </td>
+                    <td>
+                        {% if p.is_active %}
+                            <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i>上架中</span>
+                        {% else %}
+                            <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fa-solid fa-ban me-1"></i>已停用</span>
+                        {% endif %}
+                    </td>
+                    <td class="pe-4">
+                        <a href="/edit_product/{{ p.id }}" class="btn btn-sm btn-outline-primary rounded-pill fw-bold shadow-sm me-1"><i class="fa-solid fa-pen"></i></a>
+                        <a href="/toggle_product_status/{{ p.id }}" class="btn btn-sm {% if p.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %} rounded-pill fw-bold shadow-sm">
+                            {% if p.is_active %}<i class="fa-solid fa-power-off"></i>{% else %}<i class="fa-solid fa-play"></i>{% endif %}
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" class="text-center py-5 text-muted">
+                        <i class="fa-solid fa-box-open fs-1 mb-3 text-light"></i><br>
+                        沒有找到任何商品資料
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow rounded-4">
+            <form action="/bulk_upload_products" method="POST" enctype="multipart/form-data">
+                <div class="modal-header border-bottom-0 bg-warning text-dark rounded-top-4">
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-file-excel me-2"></i>批次匯入商品</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-3">請先下載範本，填寫完畢後上傳 Excel 檔案。系統將自動略過條碼重複的商品。</p>
+                    <input class="form-control form-control-lg" type="file" name="file" accept=".xlsx, .xls" required>
+                </div>
+                <div class="modal-footer border-top-0 pt-0">
+                    <button type="button" class="btn btn-light rounded-pill px-4 fw-bold" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold shadow-sm">開始匯入</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
