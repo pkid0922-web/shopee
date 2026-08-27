@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}雲端進銷存系統{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: -apple-system, "Microsoft JhengHei", sans-serif; margin: 0; background: #f5f6f8; color: #222; }
+    nav { background: #1f2937; color: #fff; padding: 12px 24px; display: flex; gap: 20px; align-items: center; }
+    nav a { color: #d1d5db; text-decoration: none; font-size: 14px; }
+    nav a:hover { color: #fff; }
+    nav .brand { color: #fff; font-weight: bold; margin-right: 12px; }
+    main { padding: 24px; max-width: 960px; margin: 0 auto; }
+    .flash { background: #fee2e2; color: #991b1b; padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; }
+    .card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+  </style>
+</head>
+<body>
+  <nav>
+    <span class="brand">雲端進銷存系統</span>
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('basics.dashboard') }}">總覽</a>
+      <a href="{{ url_for('sales.index') }}">銷售</a>
+      <a href="{{ url_for('purchases.index') }}">採購</a>
+      <a href="{{ url_for('finance.index') }}">財務</a>
+      <span style="margin-left:auto; color:#9ca3af;">{{ current_user.username }}</span>
+      <a href="{{ url_for('auth.logout') }}">登出</a>
+    {% endif %}
+  </nav>
+  <main>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

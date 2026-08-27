@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+{% block title %}登入 - 雲端進銷存系統{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 360px; margin: 60px auto;">
+  <h2>登入</h2>
+  <form method="post">
+    <div style="margin-bottom: 12px;">
+      <label>帳號</label><br>
+      <input type="text" name="username" style="width:100%; padding:8px;" required>
+    </div>
+    <div style="margin-bottom: 16px;">
+      <label>密碼</label><br>
+      <input type="password" name="password" style="width:100%; padding:8px;" required>
+    </div>
+    <button type="submit" style="width:100%; padding:10px; background:#1f2937; color:#fff; border:0; border-radius:6px;">登入</button>
+  </form>
+</div>
+{% endblock %}
