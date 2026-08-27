@@ -271,6 +271,26 @@ def create_app(config_class=Config):
     def pda_mode():
         return render_template('pda_mode.html')
 
+    @app.route('/change_password', methods=['GET', 'POST'])
+    @login_required
+    def change_password():
+        if request.method == 'POST':
+            current_password = request.form.get('current_password', '')
+            new_password = request.form.get('new_password', '')
+            confirm_password = request.form.get('confirm_password', '')
+            if not check_password_hash(current_user.password, current_password):
+                flash("目前密碼輸入錯誤！")
+            elif len(new_password) < 4:
+                flash("新密碼至少需要 4 個字元！")
+            elif new_password != confirm_password:
+                flash("兩次輸入的新密碼不一致！")
+            else:
+                current_user.password = generate_password_hash(new_password)
+                db.session.commit()
+                flash("密碼已成功修改！")
+                return redirect(url_for('index'))
+        return render_template('change_password.html')
+
     # ==========================================
     # === 蝦皮工作台對接（新增）===
     # ==========================================
