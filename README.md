@@ -101,6 +101,20 @@ cp .env.example .env          # 本機開發可以不改，會自動用 SQLite
 部署到 Railway 時：新增一個 PostgreSQL 服務（Railway 會自動注入 `DATABASE_URL`），
 設定 `SECRET_KEY` 環境變數，Railway 會用 `Procfile` 的 `web` / `release` 指令啟動。
 
+## 公司內網部署（免費方案，不用 Railway）
+
+不對外網開放，只給公司內部同一個 WiFi/網路的人連，跑在自己一台不關機的電腦上：
+
+- **`serve_lan.py`**：用 [waitress](https://docs.pylonsproject.org/projects/waitress/)（Windows 原生支援的正式 WSGI 伺服器，取代 Flask 內建的開發伺服器）把系統綁在 `0.0.0.0:5000`，同網段電腦用 `http://<這台電腦的區網IP>:5000` 連線
+- 資料庫沿用本機 SQLite（`instance/dev.db`），不用另外裝 PostgreSQL；`.env`（不進版控）放這台機器專屬的 `SECRET_KEY`
+- 開機/登入自動啟動：`C:\Users\User\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\ShopeeERP-LAN.vbs`（用 `pythonw.exe` 背景執行，不跳視窗）
+- Windows 防火牆需要放行 inbound TCP 5000（`Profile Private`），要系統管理員權限手動加一次：
+  ```powershell
+  New-NetFirewallRule -DisplayName "Shopee ERP LAN (5000)" -Direction Inbound -Protocol TCP -LocalPort 5000 -Action Allow -Profile Private
+  ```
+- 電源設定已關閉睡眠（`powercfg /change standby-timeout-ac 0`），確保這台電腦不會斷線
+- 建議之後在路由器後台幫這台電腦的 MAC 位址設 **DHCP 保留**，避免路由器重開機後區網 IP 換掉，同事的書籤失效
+
 ## 待確認事項
 
 - 蝦皮擴充功能的 API Key 要怎麼發放與儲存（目前規劃：每個蝦皮賣場一把，存在 `chrome.storage.local`）

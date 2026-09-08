@@ -1,5 +1,9 @@
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()  # 讀取同層的 .env（waitress / 排程工作不會像 `flask run` 自動載入）
+
 
 def _normalize_db_url(url: str) -> str:
     """Railway / Heroku 給的 DATABASE_URL 常是 postgres://，
