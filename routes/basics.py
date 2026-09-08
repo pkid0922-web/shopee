@@ -36,22 +36,37 @@ def register_basics_routes(app, permission_required):
     def list_products():
         q = request.args.get('q', '')
         status = request.args.get('status', 'all')
-        
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        per_page = per_page if per_page in (20, 50, 100, 200) else 50
+
         query = Product.query
         if status == 'on': query = query.filter(Product.is_active == True)
         elif status == 'off': query = query.filter(Product.is_active == False)
-        
+
         if q: query = query.filter((Product.name.like(f"%{q}%")) | (Product.barcode.like(f"%{q}%")) | (Product.code1.like(f"%{q}%")))
-        
-        products = query.order_by(Product.id.desc()).all()
-        
-        stats = {}
-        for p in products:
-            total_sales = db.session.query(func.sum(SalesOrderItem.qty)).filter(SalesOrderItem.product_id == p.id).scalar() or 0
-            total_purchases = db.session.query(func.sum(PurchaseOrderItem.qty)).filter(PurchaseOrderItem.product_id == p.id).scalar() or 0
-            stats[p.id] = {'sales': total_sales, 'purchases': total_purchases}
-            
-        return render_template('products.html', products=products, q=q, status=status, stats=stats)
+
+        # 💡 分頁：只從資料庫撈當頁那 N 筆，不要把符合條件的商品全部讀出來
+        # （商品資料已經上萬筆，撈全部 + 逐筆再查統計會非常慢）
+        pagination = query.order_by(Product.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        products = pagination.items
+
+        # 💡 統計改成「當頁商品」一次 GROUP BY 撈出來，取代原本每筆商品各查兩次的迴圈
+        # （原本 6,921 筆商品 = 13,842 次查詢；現在固定只要 2 次，不管有幾頁）
+        product_ids = [p.id for p in products]
+        stats = {pid: {'sales': 0, 'purchases': 0} for pid in product_ids}
+        if product_ids:
+            sales_rows = db.session.query(SalesOrderItem.product_id, func.sum(SalesOrderItem.qty)) \
+                .filter(SalesOrderItem.product_id.in_(product_ids)).group_by(SalesOrderItem.product_id).all()
+            purchase_rows = db.session.query(PurchaseOrderItem.product_id, func.sum(PurchaseOrderItem.qty)) \
+                .filter(PurchaseOrderItem.product_id.in_(product_ids)).group_by(PurchaseOrderItem.product_id).all()
+            for pid, total in sales_rows:
+                stats[pid]['sales'] = total or 0
+            for pid, total in purchase_rows:
+                stats[pid]['purchases'] = total or 0
+
+        return render_template('products.html', products=products, q=q, status=status, stats=stats,
+                                pagination=pagination, per_page=per_page)
 
     # 💡 核心新增：商品匯出 Excel 的神級路由
     @app.route('/export_products')
