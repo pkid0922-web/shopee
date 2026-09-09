@@ -360,6 +360,31 @@ class ShopeeShop(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now)
 
 
+class ShopeeProductMapping(db.Model):
+    """蝦皮商品編號對應（多賣場）。
+
+    一個 Product 可以同時對應到好幾個蝦皮賣場的不同 (item_id, model_id)——
+    賣場A賣的「黑色」跟賣場B賣的「黑色款」很可能是同一個 A1 商品，但蝦皮
+    平台編號不同。這張表取代 Product.shopee_item_id/shopee_model_id 那組
+    只能存單一賣場的舊欄位（那組欄位保留只是相容舊資料，新查詢一律走這裡）。
+    """
+
+    id = db.Column(db.Integer, primary_key=True)
+    shop_id = db.Column(db.Integer, db.ForeignKey("shopee_shop.id"), nullable=False)
+    shop_ref = db.relationship("ShopeeShop")
+    product_id = db.Column(db.Integer, db.ForeignKey("product.id"), nullable=False)
+    product_ref = db.relationship("Product", backref="shopee_mappings")
+    platform_item_id = db.Column(db.String(50), nullable=False, index=True)   # 平台商品編號
+    platform_model_id = db.Column(db.String(50), default="")                  # 平台規格編號（無規格商品為空字串）
+    qty = db.Column(db.Integer, default=1)          # 對應數量（一個蝦皮規格對應幾個 A1 品項）
+    allocation_ratio = db.Column(db.Float, default=1.0)  # 配銷比例
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    __table_args__ = (
+        db.UniqueConstraint("shop_id", "platform_item_id", "platform_model_id", name="uq_shopee_mapping_shop_item_model"),
+    )
+
+
 class ShopeeOrderRaw(db.Model):
     """擴充功能推送過來的原始訂單資料。先落地保存，
     轉成正式 SalesOrder（含商品比對、扣庫存等業務邏輯）留待下一階段實作。"""
